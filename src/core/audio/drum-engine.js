@@ -1,0 +1,89 @@
+import { getNoiseBuffer, noiseOffset } from './noise.js';
+import { voiceSpec } from './voices.js';
+
+export function createDrumEngine(getContext, { masterVolume = 0.85 } = {}) {
+  let master = null;
+  let masterContext = null;
+  let volume = masterVolume;
+
+  function ensureMaster(ctx) {
+    if (!master || masterContext !== ctx) {
+      master = ctx.createGain();
+      master.gain.value = volume;
+      master.connect(ctx.destination);
+      masterContext = ctx;
+    }
+    return master;
+  }
+
+  function renderVoice(ctx, spec, t, destination) {
+    if (spec.kind === 'osc') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = spec.type;
+      osc.frequency.setValueAtTime(spec.from, t);
+      if (spec.glide > 0) osc.frequency.exponentialRampToValueAtTime(spec.to, t + spec.glide);
+      gain.gain.setValueAtTime(spec.gain, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + spec.decay);
+      osc.connect(gain);
+      gain.connect(destination);
+      osc.start(t);
+      osc.stop(t + spec.stop);
+      return;
+    }
+
+    if (spec.kind === 'noise') {
+      const source = ctx.createBufferSource();
+      source.buffer = getNoiseBuffer(ctx);
+      const filter = ctx.createBiquadFilter();
+      filter.type = spec.filter.type;
+      filter.frequency.setValueAtTime(spec.filter.freq, t);
+      if (typeof spec.filter.q === 'number') filter.Q.setValueAtTime(spec.filter.q, t);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(spec.gain, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + spec.decay);
+      source.connect(filter);
+      filter.connect(gain);
+      gain.connect(destination);
+      const stopAt = t + Math.max(spec.duration, spec.decay) + 0.01;
+      source.start(t, noiseOffset(ctx));
+      source.stop(stopAt);
+    }
+  }
+
+  function trigger(id, { time, volume: hitVolume = 1, pan = 0, pitchShift = 0, accent = false } = {}) {
+    const ctx = getContext();
+    if (!ctx) return;
+    const t = typeof time === 'number' ? time : ctx.currentTime;
+
+    const ratio = Math.pow(2, pitchShift / 12);
+    const specs = voiceSpec(id, ratio);
+    if (specs.length === 0) return;
+
+    const out = ctx.createGain();
+    out.gain.value = hitVolume * (accent ? 1.3 : 1);
+
+    const masterNode = ensureMaster(ctx);
+    if (typeof ctx.createStereoPanner === 'function') {
+      const panner = ctx.createStereoPanner();
+      panner.pan.value = Math.max(-1, Math.min(1, pan));
+      out.connect(panner);
+      panner.connect(masterNode);
+    } else {
+      out.connect(masterNode);
+    }
+
+    for (const spec of specs) renderVoice(ctx, spec, t, out);
+  }
+
+  return {
+    trigger,
+    setMasterVolume(value) {
+      volume = Math.max(0, Math.min(1, value));
+      if (master) master.gain.value = volume;
+    },
+    getMasterVolume() {
+      return volume;
+    }
+  };
+}
