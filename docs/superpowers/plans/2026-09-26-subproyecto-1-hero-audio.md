@@ -1840,7 +1840,7 @@ Expected: el informe se genera (`lighthouse-report.json` está en `.gitignore`).
 Run: en el navegador, navega con `Tab` por el header y el hero.
 Expected: foco visible en el CTA, en "Escuchar la fulia" y en el hotspot; el hotspot tiene `aria-label`.
 
-- [ ] **Step 5: Commit final**
+- [x] **Step 5: Commit final**
 
 ```powershell
 git add -A
