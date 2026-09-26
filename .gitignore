@@ -3,3 +3,5 @@ dist/
 .superpowers/
 lighthouse-report*.json
 *.log
+# Assets crudos de origen (230 MB; el pipeline copia las versiones optimizadas a public/)
+assets drums/

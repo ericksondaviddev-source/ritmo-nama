@@ -50,6 +50,41 @@ function mountFallback(container, { fallbackVideoUrl, onHotspot }) {
   };
 }
 
+function findDrumheadAnchor(THREE, model) {
+  // Debe llamarse tras aplicar escala/posición: trabaja en ESPACIO MUNDO
+  model.updateWorldMatrix(true, true);
+  const box = new THREE.Box3().setFromObject(model);
+  const span = box.max.y - box.min.y;
+  if (!(span > 0)) return null;
+
+  const BUCKETS = 50;
+  const buckets = Array.from({ length: BUCKETS }, () => ({ n: 0, sx: 0, sy: 0, sz: 0 }));
+  const v = new THREE.Vector3();
+  let sampled = 0;
+
+  model.traverse((obj) => {
+    const pos = obj.geometry?.attributes?.position;
+    if (!pos) return;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(obj.matrixWorld);
+      const b = Math.max(0, Math.min(BUCKETS - 1, Math.floor(((v.y - box.min.y) / span) * BUCKETS)));
+      const t = buckets[b];
+      t.n += 1;
+      t.sx += v.x;
+      t.sy += v.y;
+      t.sz += v.z;
+      sampled += 1;
+    }
+  });
+
+  if (!sampled) return null;
+  // La banda horizontal más densa cruza el centro del parche visible
+  let best = buckets[0];
+  for (const t of buckets) if (t.n > best.n) best = t;
+  if (!best.n) return null;
+  return new THREE.Vector3(best.sx / best.n, best.sy / best.n, best.sz / best.n);
+}
+
 export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHotspot }) {
   if (!container) return null;
   if (!hasWebGL()) return mountFallback(container, { fallbackVideoUrl, onHotspot });
@@ -71,7 +106,7 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
     const box = new THREE.Box3().setFromObject(model);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
-    const scale = 2.1 / Math.max(size.x, size.y, size.z);
+    const scale = 1.9 / Math.max(size.x, size.y, size.z);
 
     model.scale.setScalar(scale);
     model.position.copy(center).multiplyScalar(-scale);
@@ -81,7 +116,7 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
-    camera.position.set(0, 0.55, 3.3);
+    camera.position.set(0, 0.5, 3.6);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -136,8 +171,9 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
       }, 3000);
     });
 
-    // Centro del parche en coordenadas de mundo (el modelo está centrado en el origen)
-    const headWorld = new THREE.Vector3(0, (size.y * scale) / 2, 0);
+    // Ancla en la banda horizontal más densa (centro del parche visible), en espacio mundo
+    const headWorld =
+      findDrumheadAnchor(THREE, model) ?? new THREE.Vector3(0, (size.y * scale) / 2, 0);
     const projected = new THREE.Vector3();
 
     const resizeObserver = new ResizeObserver(() => {
@@ -156,8 +192,12 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
 
       const rect = container.getBoundingClientRect();
       projected.copy(headWorld).project(camera);
-      hotspot.style.left = `${(projected.x * 0.5 + 0.5) * rect.width}px`;
-      hotspot.style.top = `${(-projected.y * 0.5 + 0.5) * rect.height}px`;
+      const halfW = hotspot.offsetWidth / 2 + 2;
+      const halfH = hotspot.offsetHeight / 2 + 2;
+      const x = Math.min(Math.max((projected.x * 0.5 + 0.5) * rect.width, halfW), rect.width - halfW);
+      const y = Math.min(Math.max((-projected.y * 0.5 + 0.5) * rect.height, halfH), rect.height - halfH);
+      hotspot.style.left = `${x}px`;
+      hotspot.style.top = `${y}px`;
       hotspot.style.opacity = projected.z > 1 ? '0' : '1';
 
       renderer.render(scene, camera);
