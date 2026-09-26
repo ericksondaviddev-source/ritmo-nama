@@ -95,14 +95,21 @@ export function mountHero(root, { engine } = {}) {
   }
 
   let viewer = null;
-  createViewer({
-    container,
-    modelUrl: MODEL_URL,
-    fallbackVideoUrl: FALLBACK_VIDEO_URL,
-    onHotspot: triggerFulia
-  }).then((handle) => {
-    viewer = handle;
-  });
+  const startViewer = () =>
+    createViewer({
+      container,
+      modelUrl: MODEL_URL,
+      fallbackVideoUrl: FALLBACK_VIDEO_URL,
+      onHotspot: triggerFulia
+    }).then((handle) => {
+      viewer = handle;
+    });
+  // Difiere three.js hasta que el primer pintado esté listo (reduce TBT)
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(startViewer, { timeout: 1500 });
+  } else {
+    setTimeout(startViewer, 64);
+  }
 
   return {
     destroy() {

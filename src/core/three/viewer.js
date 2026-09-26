@@ -176,9 +176,19 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
       findDrumheadAnchor(THREE, model) ?? new THREE.Vector3(0, (size.y * scale) / 2, 0);
     const projected = new THREE.Vector3();
 
+    // Tamaños cacheados: leer layout cada frame provoca forced reflow
+    let viewW = container.clientWidth || width;
+    let viewH = container.clientHeight || height;
+    let spotW = hotspot.offsetWidth;
+    let spotH = hotspot.offsetHeight;
+
     const resizeObserver = new ResizeObserver(() => {
       const w = container.clientWidth || width;
       const h = container.clientHeight || height;
+      viewW = w;
+      viewH = h;
+      spotW = hotspot.offsetWidth;
+      spotH = hotspot.offsetHeight;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
@@ -190,12 +200,11 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
       frame = requestAnimationFrame(render);
       controls.update();
 
-      const rect = container.getBoundingClientRect();
       projected.copy(headWorld).project(camera);
-      const halfW = hotspot.offsetWidth / 2 + 2;
-      const halfH = hotspot.offsetHeight / 2 + 2;
-      const x = Math.min(Math.max((projected.x * 0.5 + 0.5) * rect.width, halfW), rect.width - halfW);
-      const y = Math.min(Math.max((-projected.y * 0.5 + 0.5) * rect.height, halfH), rect.height - halfH);
+      const halfW = spotW / 2 + 2;
+      const halfH = spotH / 2 + 2;
+      const x = Math.min(Math.max((projected.x * 0.5 + 0.5) * viewW, halfW), viewW - halfW);
+      const y = Math.min(Math.max((-projected.y * 0.5 + 0.5) * viewH, halfH), viewH - halfH);
       hotspot.style.left = `${x}px`;
       hotspot.style.top = `${y}px`;
       hotspot.style.opacity = projected.z > 1 ? '0' : '1';

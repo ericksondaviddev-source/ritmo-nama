@@ -28,7 +28,8 @@ export function mountHeader(root) {
       window.open(href, '_blank', 'noopener,noreferrer');
     });
   } else {
-    cta.disabled = true;
+    // aria-disabled en vez de disabled: mantiene el CTA en el orden de Tab (foco visible)
+    cta.setAttribute('aria-disabled', 'true');
     cta.classList.add('cursor-not-allowed', 'opacity-60');
     cta.title = 'Canal de contacto por configurar';
   }
