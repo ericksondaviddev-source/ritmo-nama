@@ -18,6 +18,8 @@ export function contactCtaMarkup(section, className = '') {
 export function wireContactCta(root, section) {
   const cta = root.querySelector(`[data-contact-cta="${section}"]`);
   if (!cta) return null;
+  const labelEl = cta.querySelector('[data-contact-label]');
+  if (labelEl) labelEl.textContent = contactLabel();
   const href = contactHref(section);
   if (href) {
     cta.addEventListener('click', () => {

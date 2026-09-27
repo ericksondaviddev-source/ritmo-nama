@@ -299,7 +299,7 @@ export function mountCatalog(root) {
           ensureConfigurator();
         }
       },
-      { rootMargin: '200px' }
+      { rootMargin: '0px' }
     );
     io.observe(host);
   } else {

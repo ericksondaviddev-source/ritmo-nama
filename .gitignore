@@ -1,8 +1,10 @@
 node_modules/
 dist/
 .superpowers/
-lighthouse-report*.json
+lighthouse*.json
+lh-*.json
 *.log
 # Assets crudos de origen (230 MB; el pipeline copia las versiones optimizadas a public/)
 assets drums/
 hero-shot.png
+
