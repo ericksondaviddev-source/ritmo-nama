@@ -127,6 +127,20 @@ export function mountMidipad(root, { engine, getContext } = {}) {
     if (next > 0 && ctx) audio.playHit(drumId, ctx.currentTime, next);
   });
 
+  // Teclado: Enter/Espacio sobre una celda enfocada (los botones disparan click, no pointerdown)
+  grid.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const btn = e.target.closest('[data-cell]');
+    if (!btn) return;
+    e.preventDefault();
+    const drumId = btn.dataset.cell;
+    const step = Number(btn.dataset.step);
+    const next = audio.toggleCell(drumId, step);
+    updateCell(drumId, step);
+    const ctx = getContext?.();
+    if (next > 0 && ctx) audio.playHit(drumId, ctx.currentTime, next);
+  });
+
   // Transport
   const playBtn = root.querySelector('[data-play]');
   const stopBtn = root.querySelector('[data-stop]');
