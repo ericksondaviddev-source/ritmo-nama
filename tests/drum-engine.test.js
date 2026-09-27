@@ -89,3 +89,24 @@ describe('drum-engine', () => {
     expect(() => engine.trigger('prima')).not.toThrow();
   });
 });
+
+describe('engine: extras para MidiPad', () => {
+  it('trigger acepta un context override (render offline)', () => {
+    const live = createFakeAudioContext({ currentTime: 0 });
+    const offline = createFakeAudioContext({ currentTime: 0 });
+    const engine = createDrumEngine(() => live);
+    engine.trigger('prima', { context: offline, time: 0.1 });
+    expect(offline.log.length).toBeGreaterThan(0);
+  });
+
+  it('connectOutput conecta el master a un nodo extra (grabacion)', () => {
+    const ctx = createFakeAudioContext({ currentTime: 0 });
+    const engine = createDrumEngine(() => ctx);
+    const extra = ctx.createGain();
+    // El fake graba conexiones unidireccionalmente (solo desde el nodo origen),
+    // así que la conexión solo es observable desde el master interno; la verificación
+    // end-to-end de la grabación vive en verify-midipad.mjs (navegador).
+    expect(() => engine.connectOutput(extra)).not.toThrow();
+    expect(() => engine.trigger('prima')).not.toThrow();
+  });
+});

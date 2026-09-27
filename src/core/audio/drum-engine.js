@@ -51,8 +51,8 @@ export function createDrumEngine(getContext, { masterVolume = 0.85 } = {}) {
     }
   }
 
-  function trigger(id, { time, volume: hitVolume = 1, pan = 0, pitchShift = 0, accent = false } = {}) {
-    const ctx = getContext();
+  function trigger(id, { time, volume: hitVolume = 1, pan = 0, pitchShift = 0, accent = false, context = null } = {}) {
+    const ctx = context ?? getContext();
     if (!ctx) return;
     const t = typeof time === 'number' ? time : ctx.currentTime;
 
@@ -78,6 +78,12 @@ export function createDrumEngine(getContext, { masterVolume = 0.85 } = {}) {
 
   return {
     trigger,
+    // Conecta el master a un destino extra (p.ej. MediaStreamDestination para grabar)
+    connectOutput(node) {
+      const ctx = getContext();
+      if (!ctx || !node) return;
+      ensureMaster(ctx).connect(node);
+    },
     setMasterVolume(value) {
       volume = Math.max(0, Math.min(1, value));
       if (master) master.gain.value = volume;
