@@ -1,4 +1,4 @@
-import { DRUMS } from '../data/drums.js';
+﻿import { DRUMS } from '../data/drums.js';
 import { PATTERNS } from '../data/patterns.js';
 import { createMidipadAudio } from '../core/audio/midipad.js';
 
@@ -34,7 +34,7 @@ export function mountMidipad(root, { engine, getContext } = {}) {
         </button>
       </div>
 
-      <div data-padpanel class="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900/60 p-4 sm:p-6">
+      <div data-padpanel class="mt-8 rounded-3xl glass p-4 sm:p-6">
         <div class="flex flex-wrap items-center gap-3">
           <button type="button" data-play class="rounded-xl bg-amber-500 px-6 py-3 text-sm font-bold text-zinc-950 transition-all hover:bg-amber-400">▶ Tocar</button>
           <button type="button" data-stop class="rounded-xl border border-zinc-700 bg-zinc-800 px-5 py-3 text-sm font-bold text-zinc-300 transition-colors hover:bg-zinc-700" disabled>■ Parar</button>

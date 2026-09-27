@@ -48,7 +48,12 @@ body {
   transition: background-color 300ms ease, color 300ms ease;
 }
 
+/* Glassmorphism en paneles: fondo translúcido + blur + borde luminoso */
 .glass {
+  background: color-mix(in srgb, var(--color-zinc-900) 55%, transparent);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   transition: background-color 300ms ease, border-color 300ms ease;
 }
 

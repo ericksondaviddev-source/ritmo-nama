@@ -1,4 +1,4 @@
-import { PATTERNS } from '../data/patterns.js';
+﻿import { PATTERNS } from '../data/patterns.js';
 import { COURSE } from '../data/course.js';
 import { playSoloLoop } from '../core/audio/loop.js';
 
@@ -38,7 +38,7 @@ export function mountCourse(root, { engine } = {}) {
       <div class="mt-8 grid gap-4 sm:grid-cols-2">
         ${COURSE.map(
           (mod) => `
-          <article data-module="${mod.instrument}" class="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6">
+          <article data-module="${mod.instrument}" class="rounded-3xl glass p-6">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <h3 class="text-xl font-extrabold text-zinc-100">${mod.title}</h3>
@@ -54,7 +54,7 @@ export function mountCourse(root, { engine } = {}) {
                 <span aria-hidden="true">▶</span>
               </button>
             </div>
-            <div class="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4">
+            <div class="mt-4 rounded-2xl glass p-4">
               <h4 class="text-xs font-black uppercase tracking-wide text-zinc-400">Cómo tocarlo</h4>
               <p class="mt-1.5 text-sm leading-relaxed text-zinc-400">${mod.tecnica}</p>
             </div>

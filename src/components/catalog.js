@@ -1,4 +1,4 @@
-import { FINISHES, FINISH_ZONES, KIT_INCLUIDO, PRODUCTS } from '../data/catalog.js';
+﻿import { FINISHES, FINISH_ZONES, KIT_INCLUIDO, PRODUCTS } from '../data/catalog.js';
 import { canExport360, createConfigurator } from '../core/three/configurator.js';
 import { contactCtaMarkup, wireContactCta } from './contact-cta.js';
 
@@ -23,7 +23,7 @@ function cardMarkup(product) {
       </article>`;
   }
   return `
-    <article data-card="${product.id}" class="group overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900">
+    <article data-card="${product.id}" class="group overflow-hidden rounded-3xl glass">
       <div class="relative aspect-[4/3] overflow-hidden bg-zinc-950">
         <img
           src="${product.poster}"
@@ -112,9 +112,9 @@ export function mountCatalog(root) {
 
       <div class="mt-10 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <div>
-          <div data-configurator class="h-[340px] w-full overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-amber-600/10 sm:h-[460px]"></div>
+          <div data-configurator class="h-[340px] w-full overflow-hidden rounded-3xl glass shadow-2xl shadow-amber-600/10 sm:h-[460px]"></div>
 
-          <div class="mt-4 rounded-3xl border border-zinc-800 bg-zinc-900/60 p-4">
+          <div class="mt-4 rounded-3xl glass p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <h3 class="text-sm font-black uppercase tracking-wide text-zinc-300">Acabados en vivo</h3>
               <div class="flex items-center gap-2">
@@ -139,7 +139,7 @@ export function mountCatalog(root) {
           </div>
         </div>
 
-        <aside class="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6">
+        <aside class="rounded-3xl glass p-6">
           <h3 class="text-lg font-extrabold text-zinc-100">Kit incluido <span class="text-amber-400">· 49 $</span></h3>
           <ul class="mt-4 space-y-3 text-sm text-zinc-300">
             ${KIT_INCLUIDO.map(
