@@ -19,6 +19,39 @@
   --color-brand-600: #d97706;
 }
 
+/* Tema claro "solar": sobrescribe las vars de la paleta (las utilidades de v4 las leen) */
+:root {
+  --glass-border: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="solar"] {
+  --glass-border: rgba(61, 42, 20, 0.16);
+  color-scheme: light;
+  --color-zinc-950: #faf6ee;
+  --color-zinc-900: #f3ecdf;
+  --color-zinc-800: #e7dcc8;
+  --color-zinc-700: #cdb99c;
+  --color-zinc-600: #a08a67;
+  --color-zinc-500: #8a7455;
+  --color-zinc-400: #6b5637;
+  --color-zinc-300: #4a3a24;
+  --color-zinc-200: #3a2d20;
+  --color-zinc-100: #2d2114;
+  --color-zinc-50: #241a10;
+  --color-amber-300: #d97706;
+  --color-amber-400: #d97706;
+  --color-amber-500: #b45309;
+  --color-amber-600: #92400e;
+}
+
+body {
+  transition: background-color 300ms ease, color 300ms ease;
+}
+
+.glass {
+  transition: background-color 300ms ease, border-color 300ms ease;
+}
+
 @keyframes drum-hit {
   0% { transform: scale(1); }
   30% { transform: scale(0.86); }

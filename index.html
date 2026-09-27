@@ -2,6 +2,16 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('ritmonama-theme');
+          var theme =
+            saved || (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'solar' : 'dark');
+          if (theme === 'solar') document.documentElement.dataset.theme = 'solar';
+        } catch (e) {}
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#09090b" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -37,14 +47,24 @@
           <span class="text-xl font-black tracking-tight text-amber-500 sm:text-2xl">Ritmo Na'má</span>
           <span class="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-zinc-400">por Cuero Na'má</span>
         </a>
-        <button
-          type="button"
-          data-contact-cta="hero"
-          class="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/30 transition-all hover:bg-emerald-500 sm:px-5"
-        >
-          <span aria-hidden="true">💬</span>
-          <span data-contact-label>Próximamente</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            data-theme-toggle
+            aria-label="Cambiar a tema claro"
+            class="rounded-full border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm transition-colors hover:bg-zinc-800"
+          >
+            <span aria-hidden="true" data-theme-icon>☀️</span>
+          </button>
+          <button
+            type="button"
+            data-contact-cta="hero"
+            class="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-900/30 transition-all hover:bg-emerald-500 sm:px-5"
+          >
+            <span aria-hidden="true">💬</span>
+            <span data-contact-label>Próximamente</span>
+          </button>
+        </div>
       </div>
     </header>
 
