@@ -1,15 +1,6 @@
-const HOTSPOT_ID = 'drum-hotspot';
+import { fitModel, hasWebGL, importOrbitControls, loadGltf } from './load-model.js';
 
-function hasWebGL() {
-  try {
-    const canvas = document.createElement('canvas');
-    return Boolean(
-      window.WebGLRenderingContext && (canvas.getContext('webgl2') || canvas.getContext('webgl'))
-    );
-  } catch {
-    return false;
-  }
-}
+const HOTSPOT_ID = 'drum-hotspot';
 
 function hotspotMarkup() {
   return `
@@ -93,23 +84,9 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
     '<div class="flex h-full w-full items-center justify-center rounded-3xl border border-zinc-800 bg-zinc-900 text-sm text-zinc-500">Cargando tambor…</div>';
 
   try {
-    const THREE = await import('three');
-    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-    const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
-    const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
-
-    const loader = new GLTFLoader();
-    loader.setMeshoptDecoder(MeshoptDecoder);
-    const gltf = await loader.loadAsync(modelUrl);
-    const model = gltf.scene;
-
-    const box = new THREE.Box3().setFromObject(model);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
-    const scale = 1.9 / Math.max(size.x, size.y, size.z);
-
-    model.scale.setScalar(scale);
-    model.position.copy(center).multiplyScalar(-scale);
+    const { THREE, model } = await loadGltf(modelUrl);
+    const OrbitControls = await importOrbitControls();
+    const { box, center, size, scale } = fitModel(THREE, model, 1.9);
 
     const width = container.clientWidth || 320;
     const height = container.clientHeight || 320;
