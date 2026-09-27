@@ -171,12 +171,31 @@ export async function createConfigurator({ container, modelUrl, fallbackVideoUrl
 
     const clock = new THREE.Clock();
     let frame = 0;
+    let visible = true;
     function render() {
+      frame = 0;
+      if (!visible) return;
       frame = requestAnimationFrame(render);
       controls.update(clock.getDelta());
       renderer.render(scene, camera);
     }
     render();
+
+    // Pausa el render fuera de pantalla (batería y estabilidad del Speed Index)
+    const visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        const now = entries.some((en) => en.isIntersecting);
+        if (now === visible) return;
+        visible = now;
+        if (visible && !frame) render();
+        if (!visible && frame) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+        }
+      },
+      { rootMargin: '100px' }
+    );
+    visibilityObserver.observe(container);
 
     const handle = {
       async setModel(url, regionsOpts = null) {
@@ -242,6 +261,7 @@ export async function createConfigurator({ container, modelUrl, fallbackVideoUrl
       },
       destroy() {
         cancelAnimationFrame(frame);
+        visibilityObserver.disconnect();
         resizeObserver.disconnect();
         controls.dispose();
         disposeModel(currentModel);

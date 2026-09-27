@@ -173,7 +173,10 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
     resizeObserver.observe(container);
 
     let frame = 0;
+    let visible = true;
     function render() {
+      frame = 0;
+      if (!visible) return;
       frame = requestAnimationFrame(render);
       controls.update();
 
@@ -190,9 +193,26 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
     }
     render();
 
+    // Pausa el render fuera de pantalla (batería y estabilidad del Speed Index)
+    const visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        const now = entries.some((en) => en.isIntersecting);
+        if (now === visible) return;
+        visible = now;
+        if (visible && !frame) render();
+        if (!visible && frame) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+        }
+      },
+      { rootMargin: '100px' }
+    );
+    visibilityObserver.observe(container);
+
     return {
       destroy() {
         cancelAnimationFrame(frame);
+        visibilityObserver.disconnect();
         if (resumeTimer) clearTimeout(resumeTimer);
         resizeObserver.disconnect();
         controls.dispose();
