@@ -30,9 +30,9 @@ export const COURSE = [
     instrument: 'paila',
     title: 'Las Pailas',
     concepto:
-      'Las pailas son piezas de madera que llevan el contratiempo: su sonido seco y brillante teje el pegao que hace bailar a la tamborera.',
+      'La paila es la tabla de madera que lleva el contratiempo: se toca con la mano, no con baquetas, y su sonido seco y brillante teje el pegao que hace bailar a la tamborera.',
     tecnica:
-      'Dos baquetas de madera, golpes alternados y suaves sobre la tabla. La muñeca manda: busca un sonido parejo, sin apagar la madera.',
+      'Golpes de mano alternados y suaves sobre la tabla. La muñeca manda: busca un sonido parejo, sin apagar la madera.',
     patternId: 'guaira-tradicional'
   }
 ];

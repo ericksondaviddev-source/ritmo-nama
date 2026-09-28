@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAILA_PARTIALS, voiceSpec } from '../src/core/audio/voices.js';
+import { voiceSpec } from '../src/core/audio/voices.js';
 
 describe('voiceSpec v2', () => {
   it('pujao: 3 osciladores (cuerpo 110→48 + sub 55→40 + ring 260→200) + ruido grave', () => {
