@@ -1,56 +1,143 @@
-// Síntesis en capas v2: cada golpe = ataque (ruido filtrado) + cuerpo (osc con caída)
-// + ring (resonancia breve) + aire (resonancia del cuerpo). La paila se toca con las
-// manos: slap de palma, no baquetas.
-export function voiceSpec(id, pitchRatio = 1) {
-  const p = pitchRatio;
-  switch (id) {
-    case 'prima':
-      // Tambor agudo guía: slap brillante, cuerpo definido, ring de membrana
-      return [
-        { kind: 'noise', duration: 0.035, filter: { type: 'bandpass', freq: 2600 * p, q: 4 }, gain: 0.85, decay: 0.035 },
-        { kind: 'osc', type: 'sine', from: 380 * p, to: 210 * p, glide: 0.08, gain: 0.9, decay: 0.22, stop: 0.24 },
-        { kind: 'osc', type: 'triangle', from: 1150 * p, to: 900 * p, glide: 0.06, gain: 0.18, decay: 0.12, stop: 0.14 },
-        { kind: 'noise', duration: 0.08, filter: { type: 'lowpass', freq: 900 * p }, gain: 0.15, decay: 0.08 }
-      ];
-    case 'cruzao':
-      // Tambor mediano que conversa: slap medio, cuerpo cálido
-      return [
-        { kind: 'noise', duration: 0.045, filter: { type: 'bandpass', freq: 1500 * p, q: 3 }, gain: 0.7, decay: 0.045 },
-        { kind: 'osc', type: 'triangle', from: 240 * p, to: 120 * p, glide: 0.1, gain: 0.95, decay: 0.3, stop: 0.32 },
-        { kind: 'osc', type: 'sine', from: 720 * p, to: 660 * p, glide: 0.05, gain: 0.15, decay: 0.15, stop: 0.17 },
-        { kind: 'noise', duration: 0.1, filter: { type: 'lowpass', freq: 700 * p }, gain: 0.2, decay: 0.1 }
-      ];
-    case 'pujao':
-      // Tambor grave: palma completa, cuerpo profundo y largo, sub-armónico
-      return [
-        { kind: 'noise', duration: 0.08, filter: { type: 'lowpass', freq: 500 * p }, gain: 0.5, decay: 0.08 },
-        { kind: 'osc', type: 'sine', from: 110 * p, to: 48 * p, glide: 0.16, gain: 1.1, decay: 0.55, stop: 0.6 },
-        { kind: 'osc', type: 'sine', from: 55 * p, to: 40 * p, glide: 0.12, gain: 0.5, decay: 0.4, stop: 0.44 },
-        { kind: 'osc', type: 'triangle', from: 260 * p, to: 200 * p, glide: 0.08, gain: 0.12, decay: 0.2, stop: 0.22 }
-      ];
-    case 'paila':
-      // Se toca con las manos: slap de palma con cuerpo hueco y grave
-      return [
-        { kind: 'noise', duration: 0.05, filter: { type: 'bandpass', freq: 1900 * p, q: 2.5 }, gain: 0.9, decay: 0.05 },
-        { kind: 'noise', duration: 0.09, filter: { type: 'lowpass', freq: 800 * p }, gain: 0.45, decay: 0.09 },
-        { kind: 'osc', type: 'sine', from: 260 * p, to: 130 * p, glide: 0.09, gain: 0.7, decay: 0.2, stop: 0.22 },
-        { kind: 'osc', type: 'triangle', from: 900 * p, to: 700 * p, glide: 0.05, gain: 0.12, decay: 0.1, stop: 0.12 }
-      ];
-    case 'maracas':
-      // Doble sacudida: semilla contra la pared en dos ráfagas cortas
-      return [
-        { kind: 'noise', duration: 0.05, filter: { type: 'bandpass', freq: 6000 * p, q: 1 }, gain: 0.5, decay: 0.05 },
-        { kind: 'noise', duration: 0.045, at: 0.018, filter: { type: 'bandpass', freq: 7200 * p, q: 1 }, gain: 0.35, decay: 0.045 }
-      ];
-    case 'cuatro':
-      // Cordófono pulsado: nota con armónica, ataque de uña y resonancia del cuerpo
-      return [
-        { kind: 'noise', duration: 0.02, filter: { type: 'highpass', freq: 2500 * p }, gain: 0.2, decay: 0.02 },
-        { kind: 'osc', type: 'triangle', from: 294 * p, to: 294 * p, glide: 0, gain: 0.55, decay: 0.35, stop: 0.38 },
-        { kind: 'osc', type: 'sine', from: 588 * p, to: 588 * p, glide: 0, gain: 0.15, decay: 0.18, stop: 0.2 },
-        { kind: 'noise', duration: 0.12, filter: { type: 'lowpass', freq: 500 * p }, gain: 0.1, decay: 0.12 }
-      ];
-    default:
-      return [];
+import { articulationsFor, defaultArticulationFor, isDrum } from '../../data/drums.js';
+
+/**
+ * Síntesis en dos ejes independientes:
+ *
+ *   MEMBRANE  qué tambor es  -> cuerpo, tono y resonancia propios de cada parche
+ *   ARTIC     cómo se golpea  -> el ataque y cómo la articulación altera el cuerpo
+ *
+ * La voz final es la mezcla de ambos. Así una baqueta de laurel suena a
+ * "prima" y a "cruzao" con el mismo ataque de madera, sin duplicar capas, y
+ * añadir un tambor nuevo no obliga a reescribir los golpes.
+ *
+ * Capas de un golpe: ataque (ruido filtrado) + cuerpo (oscilador con caída) +
+ * anillo (resonancia breve) + aire (resonancia del cuerpo del tambor).
+ */
+
+const MEMBRANE = {
+  prima: {
+    body: { kind: 'osc', type: 'sine', from: 380, to: 210, glide: 0.08, gain: 0.9, decay: 0.22, stop: 0.24 },
+    ring: { kind: 'osc', type: 'triangle', from: 1150, to: 900, glide: 0.06, gain: 0.18, decay: 0.12, stop: 0.14 },
+    air: { kind: 'noise', filter: { type: 'lowpass', freq: 900 }, gain: 0.15, decay: 0.08 },
+    // La palma abierta apaga el anillo de la membrana.
+    ringHold: 0.7
+  },
+  cruzao: {
+    body: { kind: 'osc', type: 'triangle', from: 240, to: 120, glide: 0.1, gain: 0.95, decay: 0.3, stop: 0.32 },
+    ring: { kind: 'osc', type: 'sine', from: 720, to: 660, glide: 0.05, gain: 0.15, decay: 0.15, stop: 0.17 },
+    air: { kind: 'noise', filter: { type: 'lowpass', freq: 700 }, gain: 0.2, decay: 0.1 },
+    ringHold: 0.72
+  },
+  pujao: {
+    body: { kind: 'osc', type: 'sine', from: 110, to: 48, glide: 0.16, gain: 1.1, decay: 0.55, stop: 0.6 },
+    ring: { kind: 'osc', type: 'triangle', from: 260, to: 200, glide: 0.08, gain: 0.12, decay: 0.2, stop: 0.22 },
+    sub: { kind: 'osc', type: 'sine', from: 55, to: 40, glide: 0.12, gain: 0.5, decay: 0.4, stop: 0.44 },
+    air: { kind: 'noise', filter: { type: 'lowpass', freq: 500 }, gain: 0.16, decay: 0.08 },
+    ringHold: 0.8
+  },
+  paila: {
+    // Paila: solo manos. Cuerpo corto y duro más el anillo de concha que la
+    // hace sonar a timbal; ese anillo es justo lo que la distingue.
+    body: { kind: 'osc', type: 'sine', from: 260, to: 130, glide: 0.09, gain: 0.7, decay: 0.2, stop: 0.22 },
+    ring: { kind: 'osc', type: 'triangle', from: 900, to: 700, glide: 0.05, gain: 0.12, decay: 0.1, stop: 0.12 },
+    air: { kind: 'noise', filter: { type: 'lowpass', freq: 800 }, gain: 0.18, decay: 0.09 },
+    ringHold: 1.25
   }
+};
+
+/**
+ * ARTIC son modificadores, no capas fijas: `attack` sí aporta una capa y el
+ * resto escala lo que ya aporta la membrana.
+ */
+const ARTIC = {
+  laurel: {
+    label: 'Baqueta de laurel',
+    attack: {
+      kind: 'noise',
+      duration: 0.022,
+      filter: { type: 'bandpass', freq: 4200, q: 5 },
+      gain: 0.62,
+      decay: 0.022
+    },
+    // Madera dura sobre parche tenso: más brillo, el anillo suena entero.
+    brightMul: 1.12,
+    bodyGain: 1,
+    ringHold: 1.15,
+    airGain: 0.9
+  },
+  mano: {
+    label: 'Mano abierta',
+    attack: {
+      kind: 'noise',
+      duration: 0.055,
+      filter: { type: 'bandpass', freq: 1200, q: 1.2 },
+      gain: 0.8,
+      decay: 0.055
+    },
+    // La palma amortigua el parche: menos brillo y menos cola.
+    brightMul: 0.92,
+    bodyGain: 0.85,
+    ringHold: 0.75,
+    airGain: 1.2
+  }
+};
+
+const r2 = (n) => Math.round(n * 100) / 100;
+const r3 = (n) => Math.round(n * 1000) / 1000;
+
+function scaleOsc(skin, layer, ratio, artic) {
+  const tail = artic.ringHold * skin.ringHold;
+  return {
+    ...layer,
+    // El tono lo fija `ratio` (afinación en semitonos). La articulación NO
+    // altera la nota: sólo el timbre, así que aquí no entra `brightMul`.
+    from: r2(layer.from * ratio),
+    to: r2(layer.to * ratio),
+    gain: r3(layer.gain * artic.bodyGain),
+    decay: r3(layer.decay * tail),
+    stop: r3(layer.stop * tail)
+  };
+}
+
+function scaleNoise(skin, layer, ratio, artic) {
+  const tail = artic.ringHold * skin.ringHold;
+  return {
+    ...layer,
+    filter: { ...layer.filter, freq: r2(layer.filter.freq * ratio * artic.brightMul) },
+    gain: r3(layer.gain * artic.airGain),
+    decay: r3(layer.decay * tail)
+  };
+}
+
+/**
+ * Capas de un golpe.
+ * @param {string} id           tambor (prima | cruzao | pujao | paila)
+ * @param {number} pitchRatio   multiplicador de afinación (2 = una octava)
+ * @param {string} articulation baqueta de laurel o mano abierta
+ *
+ * Si la articulación no existe o el tambor no la admite (la paila no lleva
+ * baqueta) se usa la de ese tambor, nunca una inválida.
+ */
+export function voiceSpec(id, pitchRatio = 1, articulation = null) {
+  const skin = MEMBRANE[id];
+  if (!skin) return [];
+
+  const allowed = articulationsFor(id);
+  const chosen = articulation && allowed.includes(articulation) ? articulation : defaultArticulationFor(id);
+  const artic = ARTIC[chosen] ?? ARTIC[defaultArticulationFor(id)] ?? ARTIC.laurel;
+
+  const layers = [];
+  layers.push(scaleNoise(skin, artic.attack, pitchRatio, artic));
+  if (skin.body) layers.push(scaleOsc(skin, skin.body, pitchRatio, artic));
+  if (skin.ring) layers.push(scaleOsc(skin, skin.ring, pitchRatio, artic));
+  if (skin.sub) layers.push(scaleOsc(skin, skin.sub, pitchRatio, artic));
+  if (skin.air) layers.push(scaleNoise(skin, skin.air, pitchRatio, artic));
+
+  return layers;
+}
+
+/** Etiqueta legible de la articulación, para la interfaz y el curso. */
+export function articulationLabel(id, articulation = null) {
+  const artic = articulation ?? defaultArticulationFor(id);
+  return ARTIC[artic]?.label ?? null;
 }

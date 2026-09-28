@@ -15,15 +15,13 @@ function pickMime() {
   return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? null;
 }
 
-export function mountVideoExport(root, { engine, getContext }) {
-  if (!root || !engine) return null;
+export function mountVideoExport(root, { engine, getContext, audio: composition } = {}) {
+  if (!root || !engine || !composition) return null;
 
   const stemIds = DRUMS.map((d) => d.id);
   const stemVisibility = Object.fromEntries(stemIds.map((id) => [id, true]));
   let style = 'barras';
-  let patternId = 'guaira-tradicional';
-
-  const bpmFor = (id) => PATTERNS.find((p) => p.id === id)?.bpm ?? 124;
+  const selectedPatternId = composition.state.patternId ?? PATTERNS[0].id;
 
   root.className = 'border-b border-zinc-900 py-16';
   root.innerHTML = `
@@ -38,8 +36,9 @@ export function mountVideoExport(root, { engine, getContext }) {
         <div class="rounded-3xl glass p-4">
           <label class="text-xs font-black uppercase tracking-wide text-zinc-400" for="vp-pattern">Patrón</label>
           <select id="vp-pattern" data-vp-pattern class="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200">
-            ${PATTERNS.map((p) => `<option value="${p.id}" ${p.id === patternId ? 'selected' : ''}>${p.name}</option>`).join('')}
+            ${PATTERNS.map((p) => `<option value="${p.id}" ${p.id === selectedPatternId ? 'selected' : ''}>${p.name}</option>`).join('')}
           </select>
+          <p data-vp-pattern-note class="mt-1 text-[11px] text-zinc-500">Se graba lo que tengas programado en el estudio.</p>
         </div>
         <div class="rounded-3xl glass p-4">
           <label class="text-xs font-black uppercase tracking-wide text-zinc-400" for="vp-style">Estilo visual</label>
@@ -117,9 +116,21 @@ export function mountVideoExport(root, { engine, getContext }) {
     visualizer?.setStyle(style);
   });
 
-  // Patrón y stems solo aplican a la próxima grabación.
+  // El patrón se carga en la composición compartida: el Midipad refleja el cambio
+  // y el vídeo graba esa misma rejilla. Antes cada sección llevaba la suya.
   patternSel.addEventListener('change', () => {
-    patternId = patternSel.value;
+    composition.applyPreset(patternSel.value);
+  });
+
+  // Si edita la rejilla a mano, el selector deja de coincidir y lo decimos.
+  const patternNote = root.querySelector('[data-vp-pattern-note]');
+  const unsubscribe = composition.subscribe((state) => {
+    if (state.patternId) patternSel.value = state.patternId;
+    if (patternNote) {
+      patternNote.textContent = state.patternId
+        ? 'Se graba lo que tengas programado en el estudio.'
+        : 'Estás con tu propia variante: el vídeo_graba eso, no el patrón.';
+    }
   });
   for (const chk of stemChecks) chk.addEventListener('change', syncStems);
 
@@ -186,16 +197,26 @@ export function mountVideoExport(root, { engine, getContext }) {
       return;
     }
 
+    // Se fija la composición en el instante de grabar: si el visitante sigue
+    // tocando durante la toma, el vídeo no se descuadra.
+    const recorded = composition.snapshot();
+
     visualizer = createVisualizer({
-      patternId,
-      bpm: bpmFor(patternId),
-      swing: 40,
+      composition: recorded,
       getContext,
       canvas,
       stemVisibility,
       style,
       engine
     });
+    if (!visualizer) {
+      cleanupStreams();
+      engine.disconnectOutput(audioDest);
+      recording = false;
+      setControlsDisabled(false);
+      status.textContent = 'Este navegador no pudo iniciar el visualizador.';
+      return;
+    }
     visualizer.start();
 
     recorder.ondataavailable = (e) => {
@@ -209,7 +230,7 @@ export function mountVideoExport(root, { engine, getContext }) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `ritmo-nama-${patternId}-${Date.now()}.webm`;
+        a.download = `ritmo-nama-${recorded.patternId ?? 'mi-estudio'}-${Date.now()}.webm`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -245,6 +266,7 @@ export function mountVideoExport(root, { engine, getContext }) {
   return {
     destroy() {
       clearMaxTimer();
+      unsubscribe?.();
       visualizer?.destroy();
       if (recorder && recorder.state !== 'inactive') recorder.stop();
       engine.disconnectOutput(audioDest);

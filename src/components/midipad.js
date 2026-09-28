@@ -1,19 +1,46 @@
-﻿import { DRUMS } from '../data/drums.js';
+﻿import { ARTICULATIONS, DRUMS } from '../data/drums.js';
 import { PATTERNS } from '../data/patterns.js';
 import { createMidipadAudio } from '../core/audio/midipad.js';
 
 const RECORD_MAX_MS = 60000;
 
 const CELL_CLASS = {
-  0: 'bg-zinc-800/80 hover:bg-zinc-700',
-  1: 'bg-amber-500/60 hover:bg-amber-400/70',
+  0: 'bg-zinc-800 hover:bg-zinc-700',
+  1: 'bg-amber-500/50 hover:bg-amber-400/60',
   2: 'bg-amber-400 hover:bg-amber-300 shadow-lg shadow-amber-500/40'
 };
 
-export function mountMidipad(root, { engine, getContext } = {}) {
+/**
+ * Selector de articulación. Sólo aparece si el tambor admite más de una: la
+ * paila no lleva baqueta, así que no tiene nada que elegir.
+ */
+function articulationControl(drum) {
+  const opciones = drum.articulations ?? [];
+  if (opciones.length < 2) {
+    return `<span class="w-32 shrink-0 text-right text-[10px] uppercase tracking-wide text-zinc-600">${ARTICULATIONS[opciones[0]]?.label ?? ''}</span>`;
+  }
+  return `
+    <label class="sr-only" for="art-${drum.id}">Cómo tocar ${drum.name}</label>
+    <select
+      id="art-${drum.id}"
+      data-articulation="${drum.id}"
+      class="w-32 shrink-0 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] font-semibold text-zinc-300"
+    >
+      ${opciones
+        .map(
+          (a) =>
+            `<option value="${a}" ${a === drum.defaultArticulation ? 'selected' : ''}>${ARTICULATIONS[a]?.label ?? a}</option>`
+        )
+        .join('')}
+    </select>`;
+}
+
+export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
   if (!root) return null;
 
-  const audio = createMidipadAudio({ engine, getContext });
+  // Comparte la composición con el exportador de vídeo; si esta sección se monta
+  // sola (pruebas) crea la suya.
+  const audio = shared ?? createMidipadAudio({ engine, getContext });
   if (!audio) return null;
 
   const presets = PATTERNS.map((p) => ({ id: p.id, name: p.name, bpm: p.bpm }));
@@ -81,7 +108,7 @@ export function mountMidipad(root, { engine, getContext } = {}) {
   function buildGrid() {
     grid.innerHTML = DRUMS.map(
       (d) => `
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <span class="flex w-24 shrink-0 items-center gap-1.5 text-xs font-bold text-zinc-400 ${d.optional ? 'italic text-zinc-500' : ''}">
           <span class="h-2 w-2 shrink-0 rounded-full" style="background:${d.color}"></span>${d.name}
         </span>
@@ -98,10 +125,17 @@ export function mountMidipad(root, { engine, getContext } = {}) {
             )
             .join('')}
         </div>
+        ${articulationControl(d)}
       </div>`
     ).join('');
     for (const d of DRUMS) {
       cellEls[d.id] = [...grid.querySelectorAll(`[data-cell="${d.id}"]`)];
+    }
+    for (const sel of grid.querySelectorAll('[data-articulation]')) {
+      sel.addEventListener('change', () => {
+        audio.setArticulation(sel.dataset.articulation, sel.value);
+        audio.playHit(sel.dataset.articulation, undefined, 1); // se oye el cambio
+      });
     }
   }
   buildGrid();
@@ -112,7 +146,19 @@ export function mountMidipad(root, { engine, getContext } = {}) {
   }
   function refreshGrid() {
     for (const d of DRUMS) for (let i = 0; i < 12; i++) updateCell(d.id, i);
+    refreshArticulations();
   }
+
+  function refreshArticulations() {
+    for (const sel of grid.querySelectorAll('[data-articulation]')) {
+      const actual = audio.state.articulation[sel.dataset.articulation];
+      if (actual) sel.value = actual;
+    }
+  }
+
+  // La rejilla y los selectores son dos vistas del mismo estado: si otra sección
+  // (o el exportador de vídeo) cambia la composición, esto se entera.
+  const unsubscribe = audio.subscribe(() => refreshGrid());
 
   // Pads multi-touch: pointerdown cicla y hace preview del golpe
   grid.addEventListener('pointerdown', (e) => {
@@ -358,6 +404,7 @@ export function mountMidipad(root, { engine, getContext } = {}) {
 
   return {
     destroy() {
+      unsubscribe?.();
       audio.stop();
       if (loopRecorder && loopRecorder.state !== 'inactive') loopRecorder.stop();
       if (voiceRecorderActive && voiceRecorderActive.state !== 'inactive') voiceRecorderActive.stop();

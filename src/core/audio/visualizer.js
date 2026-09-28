@@ -1,39 +1,40 @@
 // Visualizador 2D sincronizado al reloj de AudioContext.
-// Dispara el patrón real a través del engine y dibuja todos los stems
-// activos del step en curso, filtrando por los stems visibles.
+//
+// Es una vista de la composición compartida (`snapshot()` del midipad): dibuja los
+// stems del step en curso y dispara exactamente los mismos golpes, con el mismo
+// mixer y la misma articulación. No conoce PATTERNS, así que el vídeo sale siempre
+// igual que lo que el visitante tiene en pantalla.
 import { createScheduler } from './scheduler.js';
 import { stepDurationSec } from './timing.js';
-import { PATTERNS } from '../../data/patterns.js';
 import { DRUMS } from '../../data/drums.js';
 
 const DRUM_BY_ID = new Map(DRUMS.map((d) => [d.id, d]));
 
 export function createVisualizer({
-  patternId,
-  bpm,
-  swing = 40,
+  composition,
   getContext,
   canvas,
   stemVisibility,
   style = 'barras',
   engine = null
 }) {
-  const pattern = PATTERNS.find((p) => p.id === patternId);
-  if (!pattern || !canvas) return null;
+  if (!composition || !canvas) return null;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
   const audioCtx = getContext?.();
-  const stepSec = stepDurationSec(bpm || pattern.bpm || 124);
+  const stepSec = stepDurationSec(composition.bpm || 124);
+  const stemIds = composition.stemIds ?? Object.keys(composition.steps ?? {});
+  const soloActive = stemIds.some((id) => composition.mixer?.[id]?.solo);
 
-  // Fila por step: todos los stems que suenan en ese step (o []).
+  // Fila por step: los stems que suenan en ese step. 1 = golpe, 2 = acento.
   const hitMap = Array.from({ length: 12 }, (_, step) =>
-    Object.keys(pattern.steps)
-      .filter((stemId) => pattern.steps[stemId]?.[step])
+    stemIds
+      .filter((stemId) => (composition.steps?.[stemId]?.[step] ?? 0) > 0)
       .map((stemId) => ({
         stemId,
         color: DRUM_BY_ID.get(stemId)?.color ?? '#f43f5e',
-        accent: Boolean(pattern.accents?.[stemId]?.[step])
+        accent: composition.steps[stemId][step] === 2
       }))
   );
 
@@ -55,7 +56,17 @@ export function createVisualizer({
     // tampoco debe oírse. Si no, el vídeo sería incoherente.
     for (const hit of hitMap[step]) {
       if (!visible(hit.stemId)) continue;
-      engine.trigger(hit.stemId, { time, accent: hit.accent });
+      const m = composition.mixer?.[hit.stemId];
+      if (!m || m.mute) continue;
+      if (soloActive && !m.solo) continue;
+      engine.trigger(hit.stemId, {
+        time,
+        accent: hit.accent,
+        volume: m.volume,
+        pan: m.pan,
+        pitchShift: m.tuning,
+        articulation: composition.articulation?.[hit.stemId]
+      });
     }
   }
 
@@ -125,8 +136,8 @@ export function createVisualizer({
     stepStartAt = 0;
     scheduler = createScheduler({
       getContext,
-      bpm: bpm || pattern.bpm || 124,
-      swing,
+      bpm: composition.bpm || 124,
+      swing: composition.swing ?? 40,
       onStep(step, time) {
         // El audio se agenda con precisión de sample; el video, no.
         triggerStep(step, time);

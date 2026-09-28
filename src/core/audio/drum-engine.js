@@ -10,18 +10,33 @@ export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel 
     if (!master || masterContext !== ctx) {
       master = ctx.createGain();
       master.gain.value = volume;
+
+      // Limitador antes del destino: cuatro tambores a la vez con sus capas
+      // superuestas llegaban a 1.10 y recortaban. Comprime sólo el exceso.
+      let node = master;
+      if (typeof ctx.createDynamicsCompressor === 'function') {
+        const limiter = ctx.createDynamicsCompressor();
+        limiter.threshold.value = -6;
+        limiter.knee.value = 3;
+        limiter.ratio.value = 12;
+        limiter.attack.value = 0.003;
+        limiter.release.value = 0.18;
+        node.connect(limiter);
+        node = limiter;
+      }
+
       // Seco al destino + húmedo por convolución (impulso procedural)
       if (typeof ctx.createConvolver === 'function') {
         const convolver = ctx.createConvolver();
         convolver.buffer = getReverbImpulse(ctx);
         const wet = ctx.createGain();
         wet.gain.value = reverbLevel;
-        master.connect(ctx.destination);
-        master.connect(convolver);
+        node.connect(ctx.destination);
+        node.connect(convolver);
         convolver.connect(wet);
         wet.connect(ctx.destination);
       } else {
-        master.connect(ctx.destination);
+        node.connect(ctx.destination);
       }
       masterContext = ctx;
     }
@@ -64,13 +79,16 @@ export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel 
     }
   }
 
-  function trigger(id, { time, volume: hitVolume = 1, pan = 0, pitchShift = 0, accent = false, context = null } = {}) {
+  function trigger(
+    id,
+    { time, volume: hitVolume = 1, pan = 0, pitchShift = 0, accent = false, articulation = null, context = null } = {}
+  ) {
     const ctx = context ?? getContext();
     if (!ctx) return;
     const t = typeof time === 'number' ? time : ctx.currentTime;
 
     const ratio = Math.pow(2, pitchShift / 12);
-    const specs = voiceSpec(id, ratio);
+    const specs = voiceSpec(id, ratio, articulation);
     if (specs.length === 0) return;
 
     const out = ctx.createGain();

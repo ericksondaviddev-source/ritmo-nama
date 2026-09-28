@@ -53,7 +53,30 @@ const flushFrames = (n, clock, advance = 0.05) => {
 
 const allVisible = () => ({}); // stemVisibility[id] !== false
 
-describe('visualizador: dispara el patrón real a través del engine', () => {
+/**
+ * El visualizador ya no recibe un patternId: recibe la composición compartida,
+ * igual que la graba el exportador. Este helper la construye desde un patrón.
+ */
+function compositionFrom(patternId = 'guaira-tradicional') {
+  const p = PATTERNS.find((x) => x.id === patternId);
+  if (!p) return null;
+  const stemIds = Object.keys(p.steps);
+  return {
+    patternId: p.id,
+    bpm: p.bpm,
+    swing: 40,
+    stemIds,
+    steps: Object.fromEntries(
+      stemIds.map((id) => [id, p.steps[id].map((hit, i) => (hit ? (p.accents[id][i] ? 2 : 1) : 0))])
+    ),
+    mixer: Object.fromEntries(
+      stemIds.map((id) => [id, { volume: 1, pan: 0, tuning: 0, solo: false, mute: false }])
+    ),
+    articulation: Object.fromEntries(stemIds.map((id) => [id, p.articulation[id]]))
+  };
+}
+
+describe('visualizador: dispara la composición real a través del engine', () => {
   it('llama a engine.trigger con el tiempo de audio de cada hit', () => {
     const clock = createFakeAudioContext({ currentTime: 0 });
     const canvas = createFakeCanvas();
@@ -61,9 +84,7 @@ describe('visualizador: dispara el patrón real a través del engine', () => {
     const engine = { trigger };
 
     const viz = createVisualizer({
-      patternId: 'guaira-tradicional',
-      bpm: 124,
-      swing: 40,
+      composition: compositionFrom(),
       getContext: () => clock,
       canvas,
       stemVisibility: allVisible(),
@@ -84,12 +105,60 @@ describe('visualizador: dispara el patrón real a través del engine', () => {
     }
   });
 
+  it('aplica mixer y articulación al golpe, no sólo el acento', () => {
+    const clock = createFakeAudioContext({ currentTime: 0 });
+    const trigger = vi.fn();
+    const comp = compositionFrom();
+    comp.mixer.prima = { volume: 0.4, pan: -0.5, tuning: 3, solo: false, mute: false };
+
+    const viz = createVisualizer({
+      composition: comp,
+      getContext: () => clock,
+      canvas: createFakeCanvas(),
+      stemVisibility: allVisible(),
+      style: 'barras',
+      engine: { trigger }
+    });
+    viz.start();
+    flushFrames(4, clock);
+    viz.stop();
+
+    const prima = trigger.mock.calls.filter(([id]) => id === 'prima');
+    expect(prima.length).toBeGreaterThan(0);
+    expect(prima[0][1]).toMatchObject({ volume: 0.4, pan: -0.5, pitchShift: 3 });
+    expect(prima[0][1].articulation).toBe('laurel');
+  });
+
+  it('respeta mute y solo de la composición', () => {
+    const clock = createFakeAudioContext({ currentTime: 0 });
+    const trigger = vi.fn();
+    const comp = compositionFrom();
+    comp.mixer.paila.mute = true;
+    comp.mixer.prima.solo = true;
+
+    const viz = createVisualizer({
+      composition: comp,
+      getContext: () => clock,
+      canvas: createFakeCanvas(),
+      stemVisibility: allVisible(),
+      style: 'barras',
+      engine: { trigger }
+    });
+    viz.start();
+    flushFrames(4, clock);
+    viz.stop();
+
+    const called = new Set(trigger.mock.calls.map(([id]) => id));
+    expect(called.has('paila')).toBe(false);
+    expect(called.has('prima')).toBe(true);
+    expect(called.has('cruzao')).toBe(false);
+  });
+
   it('sin engine no lanza y solo dibuja', () => {
     const clock = createFakeAudioContext({ currentTime: 0 });
     const canvas = createFakeCanvas();
     const viz = createVisualizer({
-      patternId: 'guaira-tradicional',
-      bpm: 124,
+      composition: compositionFrom(),
       getContext: () => clock,
       canvas,
       stemVisibility: allVisible(),
@@ -107,11 +176,10 @@ describe('visualizador: dispara el patrón real a través del engine', () => {
     const clock = createFakeAudioContext({ currentTime: 0 });
     const canvas = createFakeCanvas();
     const trigger = vi.fn();
-    const visibility = { maracas: false, cuatro: false, prima: true, cruzao: true, pujao: true, paila: true };
+    const visibility = { prima: true, cruzao: false, pujao: true, paila: false };
 
     const viz = createVisualizer({
-      patternId: 'guaira-tradicional',
-      bpm: 124,
+      composition: compositionFrom(),
       getContext: () => clock,
       canvas,
       stemVisibility: visibility,
@@ -124,8 +192,9 @@ describe('visualizador: dispara el patrón real a través del engine', () => {
     viz.stop();
 
     const called = new Set(trigger.mock.calls.map(([id]) => id));
-    expect(called.has('maracas')).toBe(false);
-    expect(called.has('cuatro')).toBe(false);
+    expect(called.has('cruzao')).toBe(false);
+    expect(called.has('paila')).toBe(false);
+    expect(called.has('prima')).toBe(true);
   });
 });
 
@@ -136,8 +205,7 @@ describe('visualizador: sincronía con el reloj de AudioContext', () => {
     const engine = { trigger: vi.fn() };
 
     const viz = createVisualizer({
-      patternId: 'guaira-tradicional',
-      bpm: 124,
+      composition: compositionFrom(),
       getContext: () => clock,
       canvas,
       stemVisibility: allVisible(),
@@ -166,8 +234,7 @@ describe('visualizador: ciclo de vida', () => {
     const canvas = createFakeCanvas();
     const engine = { trigger: vi.fn() };
     const viz = createVisualizer({
-      patternId: 'guaira-tradicional',
-      bpm: 124,
+      composition: compositionFrom(),
       getContext: () => clock,
       canvas,
       stemVisibility: allVisible(),
@@ -189,8 +256,7 @@ describe('visualizador: ciclo de vida', () => {
     const clock = createFakeAudioContext({ currentTime: 0 });
     const canvas = createFakeCanvas();
     const viz = createVisualizer({
-      patternId: 'guaira-tradicional',
-      bpm: 124,
+      composition: compositionFrom(),
       getContext: () => clock,
       canvas,
       stemVisibility: allVisible(),
@@ -208,11 +274,10 @@ describe('visualizador: ciclo de vida', () => {
     viz.stop();
   });
 
-  it('devuelve null si el patrón no existe', () => {
+  it('devuelve null si no hay composición', () => {
     const canvas = createFakeCanvas();
     const viz = createVisualizer({
-      patternId: 'no-existe',
-      bpm: 124,
+      composition: null,
       getContext: () => createFakeAudioContext(),
       canvas,
       stemVisibility: allVisible(),

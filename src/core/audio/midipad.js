@@ -1,4 +1,4 @@
-import { DRUMS } from '../../data/drums.js';
+import { DRUMS, defaultArticulationFor } from '../../data/drums.js';
 import { PATTERNS } from '../../data/patterns.js';
 import { createScheduler } from './scheduler.js';
 import { stepDurationSec, swingOffsetSec } from './timing.js';
@@ -12,14 +12,36 @@ export function createMidipadAudio({ engine, getContext } = {}) {
   const emptySteps = () => Object.fromEntries(STEM_IDS.map((id) => [id, new Array(12).fill(0)]));
   const defaultMixer = () =>
     Object.fromEntries(STEM_IDS.map((id) => [id, { volume: 1, pan: 0, tuning: 0, solo: false, mute: false }]));
+  const defaultArticulations = () =>
+    Object.fromEntries(STEM_IDS.map((id) => [id, defaultArticulationFor(id)]));
 
-  const state = { steps: emptySteps(), bpm: 124, swing: 40, mixer: defaultMixer(), master: 0.85 };
+  const state = {
+    steps: emptySteps(),
+    bpm: 124,
+    swing: 40,
+    mixer: defaultMixer(),
+    articulation: defaultArticulations(),
+    patternId: null,
+    master: 0.85
+  };
   let scheduler = null;
+  const listeners = new Set();
+
+  function emit() {
+    for (const fn of listeners) fn(state);
+  }
+
+  function subscribe(fn) {
+    listeners.add(fn);
+    return () => listeners.delete(fn);
+  }
 
   function toggleCell(drumId, stepIndex) {
     const arr = state.steps[drumId];
     if (!arr || stepIndex < 0 || stepIndex >= arr.length) return null;
     arr[stepIndex] = (arr[stepIndex] + 1) % 3;
+    state.patternId = null; // la rejilla ya no coincide con el patrón cargado
+    emit();
     return arr[stepIndex];
   }
 
@@ -27,12 +49,27 @@ export function createMidipadAudio({ engine, getContext } = {}) {
     const pattern = PATTERNS.find((p) => p.id === patternId);
     if (!pattern) return false;
     for (const id of STEM_IDS) {
-      state.steps[id] = pattern.steps[id].map((hit, i) => (hit ? (pattern.accents[id][i] ? 2 : 1) : 0));
+      const hits = pattern.steps[id] ?? [];
+      const acc = pattern.accents[id] ?? [];
+      state.steps[id] = hits.map((hit, i) => (hit ? (acc[i] ? 2 : 1) : 0));
     }
+    for (const id of STEM_IDS) {
+      state.articulation[id] = pattern.articulation?.[id] ?? defaultArticulationFor(id);
+    }
+    state.patternId = pattern.id;
     state.bpm = pattern.bpm;
     state.swing = 40;
     scheduler?.setBpm(state.bpm);
     scheduler?.setSwing(state.swing);
+    emit();
+    return true;
+  }
+
+  /** Cambia la articulación de un tambor (baqueta de laurel / mano abierta). */
+  function setArticulation(drumId, articulation) {
+    if (!(drumId in state.articulation)) return false;
+    state.articulation[drumId] = articulation;
+    emit();
     return true;
   }
 
@@ -60,7 +97,8 @@ export function createMidipadAudio({ engine, getContext } = {}) {
       accent: cellState === 2,
       volume: m.volume,
       pan: m.pan,
-      pitchShift: m.tuning
+      pitchShift: m.tuning,
+      articulation: state.articulation[drumId]
     });
   }
 
@@ -107,12 +145,15 @@ export function createMidipadAudio({ engine, getContext } = {}) {
     engine.setMasterVolume(state.master);
   }
 
-  // Re-renderiza el patrón en un OfflineAudioContext y devuelve un WAV 16 bits.
-  // El voiceBuffer (grabación de micrófono) se mezcla como capa sobre la base rítmica.
-  async function renderExport({ cycles = 2, voiceBuffer = null } = {}) {
+  // Re-renderiza la composición en un OfflineAudioContext y devuelve un WAV de 16 bits.
+  // `composition` fija qué se graba: por defecto, el estado en el momento de la llamada,
+  // de modo que el WAV y el vídeo del exportador comparten la misma captura.
+  async function renderExport({ cycles = 2, voiceBuffer = null, composition = null } = {}) {
     const ctx = getContext?.();
     if (!ctx) return null;
-    const stepSec = stepDurationSec(state.bpm);
+    const comp = composition ?? snapshot();
+    const solo = comp.stemIds.some((id) => comp.mixer[id]?.solo);
+    const stepSec = stepDurationSec(comp.bpm);
     const sampleRate = 44100;
     const baseSec = cycles * 12 * stepSec;
     const durationSec = baseSec + (voiceBuffer ? voiceBuffer.duration : 0) + 0.5;
@@ -121,19 +162,20 @@ export function createMidipadAudio({ engine, getContext } = {}) {
     for (let cycle = 0; cycle < cycles; cycle++) {
       for (let step = 0; step < 12; step++) {
         const t =
-          0.05 + cycle * 12 * stepSec + step * stepSec + swingOffsetSec(state.bpm, state.swing, step);
-        for (const id of STEM_IDS) {
-          const cell = state.steps[id][step];
+          0.05 + cycle * 12 * stepSec + step * stepSec + swingOffsetSec(comp.bpm, comp.swing, step);
+        for (const id of comp.stemIds) {
+          const cell = comp.steps[id]?.[step];
           if (!cell) continue;
-          const m = state.mixer[id];
-          if (m.mute) continue;
-          if (soloActive() && !m.solo) continue;
+          const m = comp.mixer[id];
+          if (!m || m.mute) continue;
+          if (solo && !m.solo) continue;
           engine.trigger(id, {
             time: t,
             accent: cell === 2,
             volume: m.volume,
             pan: m.pan,
             pitchShift: m.tuning,
+            articulation: comp.articulation[id],
             context: offline
           });
         }
@@ -151,10 +193,30 @@ export function createMidipadAudio({ engine, getContext } = {}) {
     return encodeWav16(rendered);
   }
 
+  /**
+   * Copia inmutable de la composición. El exportador de vídeo y el visualizador
+   * la reciben por valor: así graban exactamente lo que se ve en pantalla, sin
+   * depender de leer el estado mientras el visitante sigue programando.
+   */
+  function snapshot() {
+    return {
+      patternId: state.patternId,
+      bpm: state.bpm,
+      swing: state.swing,
+      steps: Object.fromEntries(STEM_IDS.map((id) => [id, [...state.steps[id]]])),
+      mixer: Object.fromEntries(STEM_IDS.map((id) => [id, { ...state.mixer[id] }])),
+      articulation: { ...state.articulation },
+      stemIds: [...STEM_IDS]
+    };
+  }
+
   return {
     state,
+    subscribe,
+    snapshot,
     toggleCell,
     applyPreset,
+    setArticulation,
     setMixer,
     setBpm,
     setSwing,

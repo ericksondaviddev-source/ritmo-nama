@@ -3,11 +3,10 @@ import { createFakeAudioContext } from './fakes/fake-audio-context.js';
 import { createMidipadAudio } from '../src/core/audio/midipad.js';
 import { PATTERNS } from '../src/data/patterns.js';
 
-const STEM_IDS = ['prima', 'cruzao', 'pujao', 'paila', 'maracas', 'cuatro'];
+const STEM_IDS = ['prima', 'cruzao', 'pujao', 'paila'];
 
 describe('midipad: estado', () => {
-  it('toggleCell cicla 0 → 1 → 2 → 0 y rechaza índices inválidos', () => {
-    const pad = createMidipadAudio({ engine: { trigger() {} } });
+  it('toggleCell cicla 0 → 1 → 2 → 0 y rechaza índices inválidos', () => {    const pad = createMidipadAudio({ engine: { trigger() {} } });
     expect(pad.toggleCell('prima', 0)).toBe(1);
     expect(pad.toggleCell('prima', 0)).toBe(2);
     expect(pad.toggleCell('prima', 0)).toBe(0);
@@ -36,6 +35,53 @@ describe('midipad: estado', () => {
     expect(pad.state.mixer.prima.pan).toBe(1);
     expect(pad.state.mixer.prima.tuning).toBe(-12);
     expect(pad.setMixer('nope', { volume: 1 })).toBe(false);
+  });
+
+  it('applyPreset carga la articulación de cada tambor', () => {
+    const pad = createMidipadAudio({ engine: { trigger() {} } });
+    pad.applyPreset('repique-rapido');
+    expect(pad.state.articulation.pujao).toBe('laurel');
+    expect(pad.state.articulation.paila).toBe('mano');
+  });
+
+  it('setArticulation cambia la forma de tocar y rechaza drums desconocidos', () => {
+    const pad = createMidipadAudio({ engine: { trigger() {} } });
+    expect(pad.setArticulation('prima', 'mano')).toBe(true);
+    expect(pad.state.articulation.prima).toBe('mano');
+    expect(pad.setArticulation('nope', 'mano')).toBe(false);
+  });
+});
+
+describe('midipad: una sola composición compartida', () => {
+  it('el snapshot refleja la rejilla editada, no el patrón original', () => {
+    const pad = createMidipadAudio({ engine: { trigger() {} } });
+    pad.applyPreset('guaira-tradicional');
+    expect(pad.snapshot().patternId).toBe('guaira-tradicional');
+
+    // El visitante reprograma una celda: el patrón deja de ser el de fábrica.
+    pad.toggleCell('paila', 3);
+    const despues = pad.snapshot();
+    expect(despues.patternId).toBe(null);
+    expect(despues.steps.paila[3]).toBe(pad.state.steps.paila[3]);
+  });
+
+  it('el snapshot es una copia: cambiar la rejilla no lo altera', () => {
+    const pad = createMidipadAudio({ engine: { trigger() {} } });
+    pad.applyPreset('guaira-tradicional');
+    const copia = pad.snapshot();
+    pad.toggleCell('prima', 0);
+    expect(copia.steps.prima[0]).not.toBe(pad.state.steps.prima[0]);
+  });
+
+  it('subscribe avisa de cada cambio y se puede cancelar', () => {
+    const pad = createMidipadAudio({ engine: { trigger() {} } });
+    let avisos = 0;
+    const off = pad.subscribe(() => avisos++);
+    pad.applyPreset('guaira-tradicional');
+    expect(avisos).toBe(1);
+    off();
+    pad.toggleCell('prima', 0);
+    expect(avisos).toBe(1);
   });
 });
 
@@ -98,7 +144,7 @@ describe('midipad: reproducción', () => {
       getContext: () => createFakeAudioContext({ currentTime: 5 })
     });
     pad.warmUp();
-    expect(triggers).toHaveLength(6);
+    expect(triggers).toHaveLength(4);
     expect(triggers.every((t) => t.volume === 0)).toBe(true);
   });
 });

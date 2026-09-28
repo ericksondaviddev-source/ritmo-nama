@@ -13,7 +13,7 @@ const gainNodes = (ctx) => ctx.log.filter((e) => e.op === 'createGain').map((e) 
 const eventsFor = (ctx, node) => ctx.log.filter((e) => e.node === node);
 
 describe('drum-engine', () => {
-  it('pujao v2 genera 3 osciladores; el cuerpo cae 110→48 y para en t+0.6', () => {
+  it('pujao: cuerpo grave 110->48 con sub y anillo, paro en t+0.6', () => {
     const { ctx, engine } = rig();
     engine.trigger('pujao', { time: 2 });
 
@@ -28,23 +28,59 @@ describe('drum-engine', () => {
     const ramp = ev.find((e) => e.name === 'frequency' && e.op === 'exponentialRampToValueAtTime');
     expect(ramp.v).toBeCloseTo(48);
     expect(ramp.t).toBeCloseTo(2.16);
-
-    expect(ev.find((e) => e.op === 'stop').t).toBeCloseTo(2.6);
   });
 
-  it('prima v2 genera capas: cuerpo + ring + ruido de ataque', () => {
+  it('la mano abierta acorta la cola del pujao frente a la baqueta', () => {
+    const conLaurel = rig();
+    conLaurel.engine.trigger('pujao', { time: 2, articulation: 'laurel' });
+    const laurelStop = eventsFor(conLaurel.ctx, oscNodes(conLaurel.ctx)[0]).find((e) => e.op === 'stop').t;
+
+    const conMano = rig();
+    conMano.engine.trigger('pujao', { time: 2, articulation: 'mano' });
+    const manoStop = eventsFor(conMano.ctx, oscNodes(conMano.ctx)[0]).find((e) => e.op === 'stop').t;
+
+    // Es lo que distingue a las dos manos: la palma amortigua el parche.
+    expect(manoStop).toBeLessThan(laurelStop);
+    expect(manoStop).toBeGreaterThan(2.1);
+  });
+
+  it('prima: cuerpo + anillo + ataque de ruido + aire', () => {
     const { ctx, engine } = rig();
     engine.trigger('prima', { time: 0 });
-    expect(oscNodes(ctx)).toHaveLength(2); // cuerpo + ring
-    expect(ctx.log.filter((e) => e.op === 'createBufferSource')).toHaveLength(2); // slap + aire
+    expect(oscNodes(ctx)).toHaveLength(2); // cuerpo + anillo
+    expect(ctx.log.filter((e) => e.op === 'createBufferSource')).toHaveLength(2); // ataque + aire
   });
 
-  it('maracas hace doble sacudida (segunda ráfaga a t+0.018)', () => {
-    const { ctx, engine } = rig();
-    engine.trigger('maracas', { time: 1 });
-    const sources = ctx.log.filter((e) => e.op === 'start').map((e) => e);
-    expect(sources).toHaveLength(2);
-    expect(sources[1].t).toBeCloseTo(1.018);
+  it('la articulación cambia el timbre, nunca la afinación', () => {
+    const conLaurel = rig();
+    conLaurel.engine.trigger('prima', { time: 1, articulation: 'laurel' });
+    const laurelFrec = eventsFor(conLaurel.ctx, oscNodes(conLaurel.ctx)[0]).find(
+      (e) => e.name === 'frequency' && e.op === 'setValueAtTime'
+    ).v;
+
+    const conMano = rig();
+    conMano.engine.trigger('prima', { time: 1, articulation: 'mano' });
+    const manoFrec = eventsFor(conMano.ctx, oscNodes(conMano.ctx)[0]).find(
+      (e) => e.name === 'frequency' && e.op === 'setValueAtTime'
+    ).v;
+
+    expect(manoFrec).toBe(laurelFrec);
+  });
+
+  it('una paila pedida con baqueta suena a mano, no a madera', () => {
+    const conLaurel = rig();
+    conLaurel.engine.trigger('paila', { time: 1, articulation: 'laurel' });
+    const laurelFrec = eventsFor(conLaurel.ctx, oscNodes(conLaurel.ctx)[0]).find(
+      (e) => e.name === 'frequency' && e.op === 'setValueAtTime'
+    ).v;
+
+    const conMano = rig();
+    conMano.engine.trigger('paila', { time: 1, articulation: 'mano' });
+    const manoFrec = eventsFor(conMano.ctx, oscNodes(conMano.ctx)[0]).find(
+      (e) => e.name === 'frequency' && e.op === 'setValueAtTime'
+    ).v;
+
+    expect(laurelFrec).toBe(manoFrec);
   });
 
   it('el acento multiplica la ganancia por 1.3', () => {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { contact, contactHref, contactLabel, whatsappLink } from '../src/data/config.js';
-import { DRUMS } from '../src/data/drums.js';
+import { DRUMS, articulationsFor } from '../src/data/drums.js';
 import { PATTERNS } from '../src/data/patterns.js';
 
-const DRUM_IDS = ['prima', 'cruzao', 'pujao', 'paila', 'maracas', 'cuatro'];
+const DRUM_IDS = ['prima', 'cruzao', 'pujao', 'paila'];
 
 describe('config de contacto', () => {
   it('con channel null no produce enlaces rotos', () => {
@@ -51,13 +51,15 @@ describe('config de contacto', () => {
 });
 
 describe('drums', () => {
-  it('define los 6 instrumentos con campos requeridos', () => {
+  it('define los 4 tambores de la fulia con campos requeridos', () => {
     expect(DRUMS.map((d) => d.id)).toEqual(DRUM_IDS);
     for (const drum of DRUMS) {
       expect(drum.name).toBeTruthy();
       expect(drum.role).toBeTruthy();
       expect(drum.color).toMatch(/^#/);
       expect(typeof drum.optional).toBe('boolean');
+      expect(drum.articulations.length).toBeGreaterThan(0);
+      expect(drum.articulations).toContain(drum.defaultArticulation);
     }
   });
 });
@@ -66,6 +68,23 @@ describe('patterns', () => {
   it('son 4 patrones con ids únicos', () => {
     expect(PATTERNS).toHaveLength(4);
     expect(new Set(PATTERNS.map((p) => p.id)).size).toBe(4);
+  });
+
+  it('cada patrón declara una articulación válida por tambor', () => {
+    for (const pattern of PATTERNS) {
+      for (const id of DRUM_IDS) {
+        const artic = pattern.articulation?.[id];
+        expect(artic, `${pattern.id}.${id}`).toBeTruthy();
+        expect(articulationsFor(id), `${pattern.id}.${id}`).toContain(artic);
+      }
+    }
+  });
+
+  it('nadie toca la paila con baqueta de laurel', () => {
+    expect(articulationsFor('paila')).not.toContain('laurel');
+    for (const pattern of PATTERNS) {
+      expect(pattern.articulation.paila).toBe('mano');
+    }
   });
 
   it('cada patrón tiene 12 pasos por instrumento y acentos booleanos', () => {

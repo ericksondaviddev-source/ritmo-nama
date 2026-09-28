@@ -6,17 +6,23 @@ import { mountMidipad } from './components/midipad.js';
 import { mountVideoExport } from './components/video-export.js';
 import { mountContact } from './components/contact.js';
 import { createDrumEngine } from './core/audio/drum-engine.js';
+import { createMidipadAudio } from './core/audio/midipad.js';
 import { getAudioContext, unlockAudioOnFirstGesture } from './core/audio/context.js';
 
 unlockAudioOnFirstGesture();
 
 const engine = createDrumEngine(getAudioContext);
 
+// Una sola fuente de verdad de la composición rítmica. Midipad la programa y el
+// exportador de vídeo graba exactamente lo mismo; antes cada componente creaba la
+// suya y el vídeo salía con el patrón de fábrica, no con lo editado.
+const composition = createMidipadAudio({ engine, getContext: getAudioContext });
+
 mountHeader(document.getElementById('site-header'));
 mountHero(document.getElementById('hero'), { engine });
 mountCourse(document.getElementById('minicurso'), { engine });
-mountMidipad(document.getElementById('midipad'), { engine, getContext: getAudioContext });
-mountVideoExport(document.getElementById('videoexport'), { engine, getContext: getAudioContext });
+mountMidipad(document.getElementById('midipad'), { engine, getContext: getAudioContext, audio: composition });
+mountVideoExport(document.getElementById('videoexport'), { engine, getContext: getAudioContext, audio: composition });
 mountContact(document.getElementById('contacto'));
 // El catálogo se importa y monta tras el primer pintado: no pesa en el bundle
 // inicial ni retrasa el FCP

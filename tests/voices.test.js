@@ -1,53 +1,115 @@
 import { describe, expect, it } from 'vitest';
-import { voiceSpec } from '../src/core/audio/voices.js';
+import { voiceSpec, articulationLabel } from '../src/core/audio/voices.js';
+import { DRUMS, articulationsFor, defaultArticulationFor } from '../src/data/drums.js';
 
-describe('voiceSpec v2', () => {
-  it('pujao: 3 osciladores (cuerpo 110→48 + sub 55→40 + ring 260→200) + ruido grave', () => {
-    const spec = voiceSpec('pujao', 1);
-    const oscs = spec.filter((s) => s.kind === 'osc');
-    expect(oscs).toHaveLength(3);
-    expect(oscs[0]).toMatchObject({ type: 'sine', from: 110, to: 48, glide: 0.16, gain: 1.1, decay: 0.55, stop: 0.6 });
-    expect(oscs[1]).toMatchObject({ type: 'sine', from: 55, to: 40 });
-    expect(oscs[2]).toMatchObject({ type: 'triangle', from: 260, to: 200 });
-    expect(spec.filter((s) => s.kind === 'noise')).toHaveLength(1);
-    expect(spec[0].filter).toMatchObject({ type: 'lowpass', freq: 500 });
+const layersOf = (id, pitch, artic) => voiceSpec(id, pitch, artic);
+const oscsOf = (spec) => spec.filter((s) => s.kind === 'osc');
+const noiseOf = (spec) => spec.filter((s) => s.kind === 'noise');
+
+describe('fulia: sólo los cuatro tambores y sus articulaciones', () => {
+  it('son prima, cruzao, pujao y paila; sin maracas ni cuatro', () => {
+    expect(DRUMS.map((d) => d.id)).toEqual(['prima', 'cruzao', 'pujao', 'paila']);
   });
 
-  it('prima: capas = slap(ruido bandpass 2600) + cuerpo(sine 380→210) + ring(tri 1150) + aire(lowpass 900)', () => {
-    const spec = voiceSpec('prima', 1);
-    expect(spec[0]).toMatchObject({ kind: 'noise', filter: { type: 'bandpass', freq: 2600, q: 4 } });
-    expect(spec[1]).toMatchObject({ kind: 'osc', type: 'sine', from: 380, to: 210 });
-    expect(spec[2]).toMatchObject({ kind: 'osc', type: 'triangle', from: 1150, to: 900 });
-    expect(spec[3]).toMatchObject({ kind: 'noise', filter: { type: 'lowpass', freq: 900 } });
+  it('prima, cruzao y pujao admiten baqueta de laurel y mano abierta', () => {
+    for (const id of ['prima', 'cruzao', 'pujao']) {
+      expect(articulationsFor(id)).toEqual(['laurel', 'mano']);
+    }
   });
 
-  it('cruzao: cuerpo triangle 240→120 + ring sine 720 + 2 ruidos', () => {
-    const spec = voiceSpec('cruzao', 1);
-    const oscs = spec.filter((s) => s.kind === 'osc');
-    expect(oscs[0]).toMatchObject({ type: 'triangle', from: 240, to: 120 });
-    expect(oscs[1]).toMatchObject({ type: 'sine', from: 720, to: 660 });
-    expect(spec.filter((s) => s.kind === 'noise')).toHaveLength(2);
+  it('la paila no lleva baqueta: sólo mano abierta', () => {
+    expect(articulationsFor('paila')).toEqual(['mano']);
+    expect(defaultArticulationFor('paila')).toBe('mano');
   });
 
-  it('paila: 4 osciladores con hand-slap (no parciales metálicos) + ruido de palma', () => {
-    const spec = voiceSpec('paila', 1);
-    const oscs = spec.filter((s) => s.kind === 'osc');
-    expect(oscs).toHaveLength(2);
-    expect(oscs.map((o) => o.from)).toEqual([260, 900]);
-    expect(spec.filter((s) => s.kind === 'noise')).toHaveLength(2);
-    expect(spec[0].filter).toMatchObject({ type: 'bandpass', freq: 1900 });
+  it('el id del cruzao es opcional porque en algunas variantes se omite', () => {
+    expect(DRUMS.find((d) => d.id === 'cruzao').optional).toBe(true);
+  });
+});
+
+describe('voz: separo "qué tambor" de "cómo se golpea"', () => {
+  it('el ataque depende de la articulación, no del tambor', () => {
+    const conLaurel = layersOf('prima', 1, 'laurel');
+    const conMano = layersOf('prima', 1, 'mano');
+    // Mismo ataque en los cuatro tambores de doble parche...
+    const ataqueLaurel = conLaurel[0].filter.freq;
+    for (const id of ['prima', 'cruzao', 'pujao']) {
+      expect(layersOf(id, 1, 'laurel')[0].filter.freq).toBe(ataqueLaurel);
+    }
+    // ...pero distinto con mano abierta.
+    expect(conMano[0].filter.freq).not.toBe(ataqueLaurel);
+    expect(ataqueLaurel).toBeGreaterThan(conMano[0].filter.freq);
   });
 
+  it('el cuerpo conserva el tono propio de cada tambor', () => {
+    const prima = oscsOf(layersOf('prima', 1, 'laurel'));
+    const cruzao = oscsOf(layersOf('cruzao', 1, 'laurel'));
+    const pujao = oscsOf(layersOf('pujao', 1, 'laurel'));
+    expect(prima[0].from).toBeGreaterThan(cruzao[0].from);
+    expect(cruzao[0].from).toBeGreaterThan(pujao[0].from);
+  });
+
+  it('la mano abierta apaga el anillo más que la baqueta de laurel', () => {
+    const anilloDe = (artic) => {
+      const spec = layersOf('prima', 1, artic);
+      const anillo = oscsOf(spec).find((o) => o.type === 'triangle');
+      return anillo.decay;
+    };
+    expect(anilloDe('mano')).toBeLessThan(anilloDe('laurel'));
+  });
+
+  it('la paila suena a timbal: anillo de concha que sobrevive a la mano', () => {
+    const paila = layersOf('paila', 1);
+    // El anillo de la paila aguanta más que el de la prima con la misma mano.
+    const anilloPaila = oscsOf(paila).find((o) => o.type === 'triangle');
+    const anilloPrima = oscsOf(layersOf('prima', 1, 'mano')).find((o) => o.type === 'triangle');
+    expect(anilloPaila.decay).toBeGreaterThan(anilloPrima.decay);
+  });
+
+  it('una articulación no permitida cae en la del tambor, no en una inválida', () => {
+    // La paila no admite laurel: debe sonar a mano, no a baqueta.
+    expect(layersOf('paila', 1, 'laurel')).toEqual(layersOf('paila', 1, 'mano'));
+    expect(layersOf('prima', 1, 'inventada')).toEqual(layersOf('prima', 1, 'laurel'));
+  });
+
+  it('articulationLabel devuelve la etiqueta legible', () => {
+    expect(articulationLabel('prima', 'laurel')).toBe('Baqueta de laurel');
+    expect(articulationLabel('paila')).toBe('Mano abierta');
+  });
+});
+
+describe('voz: afinación y casos límite', () => {
   it('aplica pitchRatio a todas las frecuencias', () => {
-    const spec = voiceSpec('prima', 2);
-    expect(spec[1].from).toBe(760);
-    expect(spec[1].to).toBe(420);
-    expect(spec[0].filter.freq).toBe(5200);
+    const uno = layersOf('prima', 1, 'laurel');
+    const dos = layersOf('prima', 2, 'laurel');
+    // El cuerpo y el anillo se afinan con el ratio...
+    expect(oscsOf(dos)[0].from).toBe(oscsOf(uno)[0].from * 2);
+    expect(oscsOf(dos)[0].to).toBe(oscsOf(uno)[0].to * 2);
+    // ...y el ruido del ataque también (el brillo de la articulación es extra).
+    expect(uno[0].filter.freq * 2).toBeCloseTo(dos[0].filter.freq);
   });
 
-  it('maracas y cuatro existen; id desconocido devuelve []', () => {
-    expect(voiceSpec('maracas', 1).length).toBeGreaterThan(0);
-    expect(voiceSpec('cuatro', 1).length).toBeGreaterThan(0);
+  it('sin artefactos: toda frecuencia y ganancia es un número finito positivo', () => {
+    for (const id of ['prima', 'cruzao', 'pujao', 'paila']) {
+      for (const s of layersOf(id, 1.25, 'laurel')) {
+        const nums = [s.gain, s.decay, s.from, s.to, s.filter?.freq].filter((v) => v !== undefined);
+        for (const n of nums) {
+          expect(Number.isFinite(n), `${id} ${JSON.stringify(s)}`).toBe(true);
+          expect(n).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it('id desconocido devuelve []', () => {
     expect(voiceSpec('inventado', 1)).toEqual([]);
+  });
+
+  it('cada tambor tiene al menos un cuerpo y un ataque', () => {
+    for (const id of ['prima', 'cruzao', 'pujao', 'paila']) {
+      const spec = layersOf(id);
+      expect(noiseOf(spec).length, id).toBeGreaterThan(0);
+      expect(oscsOf(spec).length, id).toBeGreaterThan(0);
+    }
   });
 });
