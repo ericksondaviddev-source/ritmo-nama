@@ -1,6 +1,7 @@
-﻿import { FINISHES, FINISH_ZONES, KIT_INCLUIDO, PRODUCTS } from '../data/catalog.js';
+﻿import { KIT_INCLUIDO, PALETTES, PRODUCTS } from '../data/catalog.js';
 import { canExport360, createConfigurator } from '../core/three/configurator.js';
 import { contactCtaMarkup, wireContactCta } from './contact-cta.js';
+import { whatsappLink } from '../data/config.js';
 
 function cardMarkup(product) {
   if (product.isCta) {
@@ -10,7 +11,7 @@ function cardMarkup(product) {
         <div>
           <span class="text-xs font-bold uppercase tracking-wide text-amber-400">A medida</span>
           <h3 class="mt-2 text-xl font-extrabold text-zinc-100">${product.name}</h3>
-          <p class="mt-2 text-sm leading-relaxed text-zinc-400">${product.tagline}. Elige colores y acabados en el configurador y pídelo por el canal de contacto.</p>
+          <p class="mt-2 text-sm leading-relaxed text-zinc-400">${product.tagline}. Elige el modelo y el acabado en el configurador y lo fabricamos a mano.</p>
         </div>
         <button
           type="button"
@@ -60,35 +61,29 @@ function cardMarkup(product) {
     </article>`;
 }
 
-function finishControlsMarkup() {
-  return FINISH_ZONES.map(
-    (zone) => `
-    <div data-finish-zone="${zone.id}" class="flex items-center justify-between gap-3">
-      <span class="text-sm font-medium text-zinc-300">${zone.label}</span>
-      <div class="flex gap-2">
-        ${FINISHES[zone.id]
-          .map(
-            (opt, i) => `
-          <label class="cursor-pointer">
-            <input
-              type="radio"
-              name="finish-${zone.id}"
-              value="${opt.hex}"
-              data-finish-input="${zone.id}"
-              class="peer sr-only"
-              ${i === 0 ? 'checked' : ''}
-            />
-            <span
-              class="block h-8 w-8 rounded-full border-2 border-zinc-700 transition-all peer-checked:border-amber-400 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400"
-              style="background:${opt.hex}"
-              title="${opt.label}"
-            ></span>
-            <span class="sr-only">${zone.label}: ${opt.label}</span>
-          </label>`
-          )
-          .join('')}
-      </div>
-    </div>`
+function paletteMarkup() {
+  return PALETTES.map(
+    (p, i) => `
+    <label class="cursor-pointer">
+      <input
+        type="radio"
+        name="palette"
+        value="${p.id}"
+        data-palette-input
+        class="peer sr-only"
+        ${i === 0 ? 'checked' : ''}
+      />
+      <span
+        class="flex items-center gap-2 rounded-full border-2 border-zinc-700 py-1.5 pl-1.5 pr-3 transition-all peer-checked:border-amber-400 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400"
+        title="${p.label}"
+      >
+        <span class="flex -space-x-1">
+          ${p.colors.map((c) => `<span class="h-4 w-2.5 rounded-full border border-zinc-900/40" style="background:${c}"></span>`).join('')}
+        </span>
+        <span class="text-xs font-bold text-zinc-300">${p.label}</span>
+      </span>
+      <span class="sr-only">Acabado ${p.label}</span>
+    </label>`
   ).join('');
 }
 
@@ -103,7 +98,7 @@ export function mountCatalog(root) {
         <h2 id="catalog-title" class="mt-2 text-3xl font-extrabold tracking-tight text-zinc-50 sm:text-4xl">
           Elige tu tambor <span class="text-amber-400">y hazlo tuyo</span>
         </h2>
-        <p class="mt-3 text-zinc-400">Mira cada modelo en video, gíralo en 3D y prueba acabados en tiempo real.</p>
+        <p class="mt-3 text-zinc-400">Mira cada modelo en video, gíralo en 3D y elige el acabado que quieres para tu pedido.</p>
       </div>
 
       <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -116,7 +111,7 @@ export function mountCatalog(root) {
 
           <div class="mt-4 rounded-3xl glass p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <h3 class="text-sm font-black uppercase tracking-wide text-zinc-300">Acabados en vivo</h3>
+              <h3 class="text-sm font-black uppercase tracking-wide text-zinc-300">Personaliza tu tambor</h3>
               <div class="flex items-center gap-2">
                 <span data-export-status role="status" aria-live="polite" class="text-xs text-zinc-500"></span>
                 <button
@@ -128,14 +123,18 @@ export function mountCatalog(root) {
                 </button>
               </div>
             </div>
+            <p class="mt-1 text-xs text-zinc-500">Elige el acabado y lo hacemos a mano en el taller.</p>
+            <div data-palette class="mt-4 flex flex-wrap gap-2">
+              ${paletteMarkup()}
+            </div>
+            <button
+              type="button"
+              data-order
+              class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-900/30 transition-all hover:bg-emerald-500"
+            >
+              <span aria-hidden="true">💬</span> Pedir este tambor por WhatsApp
+            </button>
             <p data-export-aviso class="mt-2 hidden text-xs text-amber-500/90"></p>
-            <fieldset data-finish-controls class="mt-4 space-y-3">
-              <legend class="sr-only">Acabados del tambor</legend>
-              ${finishControlsMarkup()}
-            </fieldset>
-            <p data-regions-hint class="mt-3 hidden text-xs text-zinc-500">
-              El Set Na'má es el exhibidor de diseños: para personalizar, elige un Drumkid.
-            </p>
           </div>
         </div>
 
@@ -158,17 +157,17 @@ export function mountCatalog(root) {
   wireContactCta(root, 'catalog');
 
   const host = root.querySelector('[data-configurator]');
-  const finishFieldset = root.querySelector('[data-finish-controls]');
-  const regionsHint = root.querySelector('[data-regions-hint]');
   const exportBtn = root.querySelector('[data-export-360]');
   const exportAviso = root.querySelector('[data-export-aviso]');
   const exportStatus = root.querySelector('[data-export-status]');
+  const orderBtn = root.querySelector('[data-order]');
   const selectButtons = [...root.querySelectorAll('[data-product-id]')];
 
   let handle = null;
   let initPromise = null;
   let activeId = null;
   let pendingId = null;
+  let selectedPalette = PALETTES[0].id;
 
   const productById = (id) => PRODUCTS.find((p) => p.id === id);
 
@@ -176,17 +175,6 @@ export function mountCatalog(root) {
     activeId = id;
     host.dataset.activeProduct = id;
     for (const btn of selectButtons) btn.setAttribute('aria-pressed', String(btn.dataset.productId === id));
-    const product = productById(id);
-    finishFieldset.disabled = !product?.customizable;
-    regionsHint.classList.toggle('hidden', Boolean(product?.customizable));
-  }
-
-  function syncDataset() {
-    if (!handle) return;
-    host.dataset.tints = JSON.stringify(handle.getTints());
-    host.dataset.hasRegions = String(handle.hasRegions());
-    finishFieldset.disabled = !handle.hasRegions();
-    regionsHint.classList.toggle('hidden', handle.hasRegions());
   }
 
   function ensureConfigurator() {
@@ -195,11 +183,9 @@ export function mountCatalog(root) {
     initPromise = createConfigurator({
       container: host,
       modelUrl: first.model,
-      fallbackVideoUrl: first.video,
-      regions: first.customizable ? first.regions : null
+      fallbackVideoUrl: first.video
     }).then((h) => {
       handle = h;
-      syncDataset();
       if (pendingId && pendingId !== activeId) {
         const id = pendingId;
         pendingId = null;
@@ -220,8 +206,7 @@ export function mountCatalog(root) {
       await ensureConfigurator();
       return;
     }
-    await handle.setModel(product.model, product.customizable ? product.regions : null);
-    syncDataset();
+    await handle.setModel(product.model);
   }
 
   // Selección desde tarjetas (incluida la CTA "Personaliza", cuyo data-product-id apunta al blanco)
@@ -229,13 +214,25 @@ export function mountCatalog(root) {
     btn.addEventListener('click', () => selectProduct(btn.dataset.productId, { scroll: btn.dataset.scroll === 'true' }));
   }
 
-  // Acabados
-  finishFieldset.addEventListener('change', (e) => {
-    const input = e.target.closest('[data-finish-input]');
-    if (!input || !handle) return;
-    handle.setTint(input.dataset.finishInput, input.value);
-    host.dataset.tints = JSON.stringify(handle.getTints());
+  // Paleta de acabados de referencia
+  root.querySelector('[data-palette]').addEventListener('change', (e) => {
+    const input = e.target.closest('[data-palette-input]');
+    if (input) selectedPalette = input.value;
   });
+
+  // Pedido por WhatsApp con mensaje pre-armado (modelo + acabado)
+  if (whatsappLink('x')) {
+    orderBtn.addEventListener('click', () => {
+      const product = productById(activeId ?? 'drumkid-multicolor');
+      const palette = PALETTES.find((p) => p.id === selectedPalette) ?? PALETTES[0];
+      const href = whatsappLink(`Hola, quiero un ${product.name} con acabado ${palette.label}`);
+      if (href) window.open(href, '_blank', 'noopener,noreferrer');
+    });
+  } else {
+    orderBtn.disabled = true;
+    orderBtn.classList.add('cursor-not-allowed', 'opacity-60');
+    orderBtn.title = 'Canal de contacto por configurar';
+  }
 
   // Reels: hover (ratón) / tap (táctil)
   for (const card of root.querySelectorAll('[data-card]')) {

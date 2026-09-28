@@ -25,3 +25,11 @@ export function contactLabel() {
   if (contact.channel === 'telegram') return 'Escribir por Telegram';
   return 'Próximamente';
 }
+
+// Enlace de WhatsApp con mensaje arbitrario (personalización por catálogo)
+export function whatsappLink(message) {
+  if (contact.channel === 'whatsapp' && contact.number) {
+    return `https://wa.me/${contact.number}?text=${encodeURIComponent(message)}`;
+  }
+  return null;
+}

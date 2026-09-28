@@ -16,9 +16,7 @@ export const PRODUCTS = [
     model: '/assets/models/Drumkidmulticolor3D.glb',
     video: '/assets/video/Drumkidmulticolor3D.mp4',
     poster: '/assets/img/drumskidmulticolor.jpg',
-    customizable: true,
-    // unidades de malla del GLB (verificado offline: parches |ny|>0.7, valle de radio en 0.50)
-    regions: { normalThreshold: 0.7, radiusThreshold: 0.5 }
+    customizable: true
   },
   {
     id: 'drumkid-clasico',
@@ -28,8 +26,7 @@ export const PRODUCTS = [
     model: '/assets/models/Drumkid3D.glb',
     video: '/assets/video/Drumkid3D.mp4',
     poster: '/assets/img/Red_wooden_drum_with_mallet_20260925130521.jpg',
-    customizable: true,
-    regions: { normalThreshold: 0.7, radiusThreshold: 0.5 }
+    customizable: true
   },
   {
     id: 'set-nama',
@@ -39,8 +36,7 @@ export const PRODUCTS = [
     model: '/assets/models/Mostradordrums.glb',
     video: '/assets/video/mostradordrum.mp4',
     poster: '/assets/img/Colorful_drums_on_wooden_shelf.jpg',
-    customizable: false,
-    regions: null
+    customizable: false
   },
   {
     id: 'personaliza',
@@ -77,4 +73,13 @@ export const FINISH_ZONES = [
   { id: 'wood', label: 'Madera del cilindro' },
   { id: 'head', label: 'Parches' },
   { id: 'trim', label: 'Lazos y baqueta' }
+];
+
+// Acabados de referencia para la personalización (el fabricante los hace a mano)
+export const PALETTES = [
+  { id: 'splatter-clasico', label: 'Splatter Clásico', colors: ['#dc2626', '#f59e0b', '#3b82f6'] },
+  { id: 'rojo-fulia', label: 'Rojo Fulia', colors: ['#b91c1c', '#dc2626', '#7f1d1d'] },
+  { id: 'azul-guaira', label: 'Azul Guaira', colors: ['#1d4ed8', '#3b82f6', '#0ea5e9'] },
+  { id: 'verde-tambor', label: 'Verde Tambor', colors: ['#047857', '#059669', '#10b981'] },
+  { id: 'negro-caoba', label: 'Negro Caoba', colors: ['#1c1917', '#44403c', '#78716c'] }
 ];

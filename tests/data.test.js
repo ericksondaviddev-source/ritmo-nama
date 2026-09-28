@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contact, contactHref, contactLabel } from '../src/data/config.js';
+import { contact, contactHref, contactLabel, whatsappLink } from '../src/data/config.js';
 import { DRUMS } from '../src/data/drums.js';
 import { PATTERNS } from '../src/data/patterns.js';
 
@@ -33,6 +33,18 @@ describe('config de contacto', () => {
 
     expect(contactHref('hero')).toBe('https://t.me/ritmonama?text=Hola');
     expect(contactLabel()).toBe('Escribir por Telegram');
+
+    Object.assign(contact, original);
+  });
+
+  it('whatsappLink arma el enlace con mensaje arbitrario solo con canal configurado', () => {
+    expect(whatsappLink('Hola')).toBe(null);
+
+    const original = { ...contact };
+    Object.assign(contact, { channel: 'whatsapp', number: '584121234567' });
+    expect(whatsappLink('Quiero un Drumkid')).toBe(
+      'https://wa.me/584121234567?text=' + encodeURIComponent('Quiero un Drumkid')
+    );
 
     Object.assign(contact, original);
   });

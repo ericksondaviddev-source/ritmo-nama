@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FINISHES, KIT_INCLUIDO, PRODUCTS } from '../src/data/catalog.js';
+import { KIT_INCLUIDO, PALETTES, PRODUCTS } from '../src/data/catalog.js';
 
 const ROOT = process.cwd();
 
@@ -37,13 +37,14 @@ describe('kit incluido', () => {
   });
 });
 
-describe('acabados', () => {
-  it('define 3 zonas; cada una empieza por Original (#ffffff)', () => {
-    expect(Object.keys(FINISHES).sort()).toEqual(['head', 'trim', 'wood']);
-    for (const options of Object.values(FINISHES)) {
-      expect(options.length).toBeGreaterThanOrEqual(3);
-      expect(options[0]).toEqual({ id: 'original', label: 'Original', hex: '#ffffff' });
-      for (const opt of options) expect(opt.hex).toMatch(/^#[0-9a-f]{6}$/i);
+describe('acabados de referencia', () => {
+  it('define 5 paletas con nombre y 3 colores cada una', () => {
+    expect(PALETTES).toHaveLength(5);
+    expect(new Set(PALETTES.map((p) => p.id)).size).toBe(5);
+    for (const p of PALETTES) {
+      expect(p.label).toBeTruthy();
+      expect(p.colors).toHaveLength(3);
+      for (const hex of p.colors) expect(hex).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
 });
