@@ -53,6 +53,14 @@ export function mountCourse(root, { engine } = {}) {
               >
                 <span aria-hidden="true">▶</span>
               </button>
+              <button
+                type="button"
+                data-course-narration="${mod.instrument}"
+                aria-label="Escuchar la narración de ${mod.title}"
+                class="shrink-0 rounded-full bg-zinc-800 p-3.5 text-lg text-zinc-300 transition-all hover:bg-zinc-700 hover:text-zinc-100"
+              >
+                <span aria-hidden="true">🔊</span>
+              </button>
             </div>
             <div class="mt-4 rounded-2xl glass p-4">
               <h4 class="text-xs font-black uppercase tracking-wide text-zinc-400">Cómo tocarlo</h4>
@@ -66,6 +74,25 @@ export function mountCourse(root, { engine } = {}) {
 
   let active = null;
   let activeInstrument = null;
+  const narrations = {};
+
+  for (const mod of COURSE) {
+    const audio = new Audio(`/assets/audio/course/${mod.instrument}.mp3`);
+    audio.preload = 'auto';
+    narrations[mod.instrument] = audio;
+  }
+
+  function stopActive() {
+    active?.stop();
+    active = null;
+    const prev = root.querySelector(`[data-course-play="${activeInstrument}"]`);
+    if (prev) prev.setAttribute('aria-pressed', 'false');
+    activeInstrument = null;
+    for (const mod of COURSE) {
+      const audio = narrations[mod.instrument];
+      if (audio && !audio.paused) { audio.pause(); audio.currentTime = 0; }
+    }
+  }
 
   function stopActive() {
     active?.stop();
@@ -88,6 +115,15 @@ export function mountCourse(root, { engine } = {}) {
         activeInstrument = mod.instrument;
         btn.setAttribute('aria-pressed', 'true');
       }
+    });
+    const nBtn = root.querySelector(`[data-course-narration="${mod.instrument}"]`);
+    nBtn.addEventListener('click', () => {
+      const audio = narrations[mod.instrument];
+      if (!audio) return;
+      if (!audio.paused) { audio.pause(); audio.currentTime = 0; nBtn.setAttribute('aria-pressed', 'false'); return; }
+      audio.play().catch(() => {});
+      nBtn.setAttribute('aria-pressed', 'true');
+      audio.addEventListener('ended', () => { nBtn.setAttribute('aria-pressed', 'false'); }, { once: true });
     });
   }
 

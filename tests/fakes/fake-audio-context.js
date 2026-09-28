@@ -25,8 +25,9 @@ export function createFakeAudioContext({ sampleRate = 48000, currentTime = 0 } =
       this.connections.push(target);
       return target;
     },
-    disconnect() {
-      this.connections = [];
+    disconnect(target) {
+      if (target) this.connections = this.connections.filter((c) => c !== target);
+      else this.connections = [];
     }
   });
 

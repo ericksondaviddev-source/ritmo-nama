@@ -97,6 +97,12 @@ export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel 
       if (!ctx || !node) return;
       ensureMaster(ctx).connect(node);
     },
+    // Desconecta el master de un destino extra
+    disconnectOutput(node) {
+      const ctx = getContext();
+      if (!ctx || !node) return;
+      ensureMaster(ctx).disconnect(node);
+    },
     setMasterVolume(value) {
       volume = Math.max(0, Math.min(1, value));
       if (master) master.gain.value = volume;
