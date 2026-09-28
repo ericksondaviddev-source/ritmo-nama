@@ -1,10 +1,13 @@
 export const contact = {
   channel: null, // 'whatsapp' | 'telegram' | null
   number: null, // ej. '584121234567'
+  instagram: null, // ej. 'ritmonama' (sin @)
+  tiktok: null, // ej. 'ritmonama' (sin @)
   messages: {
     hero: '',
     catalog: '',
-    midipad: ''
+    midipad: '',
+    contact: ''
   }
 };
 

@@ -3,6 +3,7 @@ import { mountHeader } from './components/header.js';
 import { mountHero } from './components/hero.js';
 import { mountCourse } from './components/course.js';
 import { mountMidipad } from './components/midipad.js';
+import { mountContact } from './components/contact.js';
 import { createDrumEngine } from './core/audio/drum-engine.js';
 import { getAudioContext, unlockAudioOnFirstGesture } from './core/audio/context.js';
 
@@ -14,6 +15,7 @@ mountHeader(document.getElementById('site-header'));
 mountHero(document.getElementById('hero'), { engine });
 mountCourse(document.getElementById('minicurso'), { engine });
 mountMidipad(document.getElementById('midipad'), { engine, getContext: getAudioContext });
+mountContact(document.getElementById('contacto'));
 // El catálogo se importa y monta tras el primer pintado: no pesa en el bundle
 // inicial ni retrasa el FCP
 const mountCatalogDeferred = () =>
