@@ -32,17 +32,26 @@ function cardMarkup(product) {
 
   const tiene3d = Boolean(product.model);
   const sinVideo = !product.video;
-  return `
-    <article data-card="${product.id}" class="group overflow-hidden rounded-3xl glass">
-      <div class="relative aspect-[4/3] overflow-hidden bg-zinc-950">
-        <img
+  // Un producto puede entrar con 3D antes de tener foto del taller: en vez de
+  // una imagen rota, se dice claramente que falta.
+  const visual = product.poster
+    ? `<img
           src="${product.poster}"
           alt="${product.name}"
           loading="lazy"
           decoding="async"
           onerror="this.remove()"
           class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
+        />`
+    : `<div class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-zinc-900 text-center">
+         <span aria-hidden="true" class="text-2xl">🛠️</span>
+         <span class="text-xs font-bold text-zinc-400">Foto del taller pendiente</span>
+         <span class="text-[11px] text-zinc-600">Ya puedes girarlo en 3D</span>
+       </div>`;
+  return `
+    <article data-card="${product.id}" class="group overflow-hidden rounded-3xl glass">
+      <div class="relative aspect-[4/3] overflow-hidden bg-zinc-950">
+        ${visual}
         ${
           sinVideo
             ? ''
@@ -99,6 +108,7 @@ function acabadoMarkup(primeroId) {
           alt=""
           loading="lazy"
           decoding="async"
+          onerror="this.style.visibility='hidden'"
           class="aspect-square w-full rounded-xl object-cover"
         />
         <span class="px-1 pb-0.5 text-center text-[11px] font-bold leading-tight text-zinc-300">${a.label}</span>
@@ -109,8 +119,10 @@ function acabadoMarkup(primeroId) {
 }
 
 function tallerMarkup() {
-  return VIDEOS_TALLER.map(
-    (v) => `
+  const ancho = VIDEOS_TALLER.filter((v) => v.ancho);
+  const vertical = VIDEOS_TALLER.filter((v) => !v.ancho);
+
+  const card = (v, aspect) => `
     <figure class="overflow-hidden rounded-3xl glass">
       <video
         src="${v.src}"
@@ -121,14 +133,21 @@ function tallerMarkup() {
         preload="none"
         controls
         aria-label="${v.titulo}"
-        class="aspect-[9/16] w-full bg-zinc-950 object-cover"
+        class="aspect-[${aspect}] w-full bg-zinc-950 object-cover"
       ></video>
       <figcaption class="p-4">
         <h3 class="text-sm font-extrabold text-zinc-100">${v.titulo}</h3>
         <p class="mt-1 text-xs text-zinc-500">${v.texto}</p>
       </figcaption>
-    </figure>`
-  ).join('');
+    </figure>`;
+
+  return `
+    ${
+      ancho.length
+        ? `<div class="grid gap-4 sm:grid-cols-2">${ancho.map((v) => card(v, '16/9')).join('')}</div>`
+        : ''
+    }
+    <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:max-w-xl">${vertical.map((v) => card(v, '9/16')).join('')}</div>`;
 }
 
 export function mountCatalog(root) {
@@ -167,7 +186,7 @@ export function mountCatalog(root) {
                 </button>
               </div>
             </div>
-            <p class="mt-1 text-xs text-zinc-500">Cada acabado es un tambor real: así se ven y así se fabricate.</p>
+            <p class="mt-1 text-xs text-zinc-500">Cada acabado es un tambor real, con su propio color y textura.</p>
             <div data-acabados class="mt-4 flex flex-wrap gap-2">
               ${acabadoMarkup(PRODUCTO_POR_DEFECTO)}
             </div>
@@ -198,8 +217,8 @@ export function mountCatalog(root) {
       </div>
 
       <div class="mt-10">
-        <h3 class="text-sm font-black uppercase tracking-wide text-zinc-400">Del taller</h3>
-        <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:max-w-xl">
+        <h3 class="text-sm font-black uppercase tracking-wide text-zinc-400">Del taller y la plaza</h3>
+        <div class="mt-4">
           ${tallerMarkup()}
         </div>
       </div>

@@ -43,6 +43,26 @@ export const PRODUCTS = [
     customizable: true
   },
   {
+    id: 'madera-clara',
+    name: 'Tambor Madera Clara',
+    tagline: 'Madera clara, sin pintar',
+    price: '49 $',
+    model: '/assets/models/EscaneoMaderaClara.glb',
+    poster: null, // falta la foto del taller; el 3D ya está listo
+    video: null,
+    customizable: true
+  },
+  {
+    id: 'madera-oscura',
+    name: 'Tambor Madera Oscura',
+    tagline: 'Madera oscura, tono profundo',
+    price: '49 $',
+    model: '/assets/models/EscaneoMaderaOscura.glb',
+    poster: null, // falta la foto del taller; el 3D ya está listo
+    video: null,
+    customizable: true
+  },
+  {
     id: 'rayas',
     name: 'Tambor Rayas',
     tagline: 'Rayas verticales, pintado a mano',
@@ -51,8 +71,7 @@ export const PRODUCTS = [
     poster: '/assets/img/tambor-rayas.jpg',
     video: null,
     customizable: false
-  },
-  {
+  },  {
     id: 'kit-clasico',
     name: 'Kit Clásico',
     tagline: 'Tambor, baqueta y forro de obsequio',
@@ -86,20 +105,32 @@ export const ACABADOS = PRODUCTS.filter((p) => !p.isCta).map((p) => ({
 
 export const PRODUCTO_POR_DEFECTO = 'azul-rayas';
 
-// Vídeos del taller, fuera del catálogo de producto.
+// Vídeos del taller y de la comunidad, fuera del catálogo de producto.
+// `ancho: true` los reserva para una franja apaisada: en vertical se ven
+// pequeños y en horizontal son el propio protagonista.
 export const VIDEOS_TALLER = [
+  {
+    id: 'plaza',
+    src: '/assets/video/en-la-plaza.mp4',
+    poster: '/assets/img/en-la-plaza.jpg',
+    titulo: 'En la plaza, en familia',
+    texto: 'La noche se prende antes de que suene el primer golpe.',
+    ancho: true
+  },
+  {
+    id: 'taller',
+    src: '/assets/video/paseo-taller.mp4',
+    poster: null,
+    titulo: 'Paseo por el taller',
+    texto: 'Del vaso al parche, paso a paso.',
+    ancho: false
+  },
   {
     id: 'personas',
     src: '/assets/video/personas-tambores.mp4',
     poster: null,
     titulo: 'Tambores en la fiesta',
-    texto: 'Cuando suena la fulia, el barrio se junta.'
-  },
-  {
-    id: 'taller',
-    src: '/assets/video/recorrido-taller.mp4',
-    poster: '/assets/img/taller-proceso.jpg',
-    titulo: 'Recorrido por el taller',
-    texto: 'Del vaso al parche, paso a paso.'
+    texto: 'Cuando suena la fulia, el barrio se junta.',
+    ancho: false
   }
 ];

@@ -24,7 +24,9 @@ const DEST = resolve('public/assets/models');
 const SCANS = [
   { file: 'azul con rayas.glb', name: 'EscaneoAzul' },
   { file: 'gris plateado.glb', name: 'EscaneoGris' },
-  { file: 'negro con chispas.glb', name: 'EscaneoNegro' }
+  { file: 'negro con chispas.glb', name: 'EscaneoNegro' },
+  { file: 'madera clara.glb', name: 'EscaneoMaderaClara' },
+  { file: 'madera oscura.glb', name: 'EscaneoMaderaOscura' }
 ];
 
 const argv = process.argv.slice(2);
