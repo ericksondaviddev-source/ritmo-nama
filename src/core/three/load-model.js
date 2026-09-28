@@ -9,13 +9,35 @@ export function hasWebGL() {
   }
 }
 
+// Decodificador Draco compartido: los escaneos se optimizan con
+// KHR_draco_mesh_compression y GLTFLoader lo exige. El decoder se sirve desde
+// /draco (copiado de three) para no depender de un CDN externo.
+let dracoLoaderPromise = null;
+function getDracoLoader() {
+  if (!dracoLoaderPromise) {
+    dracoLoaderPromise = import('three/addons/loaders/DRACOLoader.js').then(({ DRACOLoader }) => {
+      const draco = new DRACOLoader();
+      draco.setDecoderPath('/draco/');
+      return draco;
+    });
+  }
+  return dracoLoaderPromise;
+}
+
+export function disposeDracoLoader() {
+  dracoLoaderPromise?.then((d) => d.dispose());
+  dracoLoaderPromise = null;
+}
+
 // Todo lo pesado se importa en diferido: three.js no entra en el bundle inicial
 export async function loadGltf(modelUrl) {
   const THREE = await import('three');
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
   const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
+  const draco = await getDracoLoader();
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
+  loader.setDRACOLoader(draco);
   const gltf = await loader.loadAsync(modelUrl);
   return { THREE, model: gltf.scene };
 }

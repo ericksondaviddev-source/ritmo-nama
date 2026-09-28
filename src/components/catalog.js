@@ -1,4 +1,11 @@
-﻿import { KIT_INCLUIDO, PALETTES, PRODUCTS } from '../data/catalog.js';
+﻿import {
+  ACABADOS,
+  KIT_INCLUIDO,
+  MODELOS_3D,
+  PRODUCTO_POR_DEFECTO,
+  PRODUCTS,
+  VIDEOS_TALLER
+} from '../data/catalog.js';
 import { canExport360, createConfigurator } from '../core/three/configurator.js';
 import { contactCtaMarkup, wireContactCta } from './contact-cta.js';
 import { whatsappLink } from '../data/config.js';
@@ -11,30 +18,35 @@ function cardMarkup(product) {
         <div>
           <span class="text-xs font-bold uppercase tracking-wide text-amber-400">A medida</span>
           <h3 class="mt-2 text-xl font-extrabold text-zinc-100">${product.name}</h3>
-          <p class="mt-2 text-sm leading-relaxed text-zinc-400">${product.tagline}. Elige el modelo y el acabado en el configurador y lo fabricamos a mano.</p>
+          <p class="mt-2 text-sm leading-relaxed text-zinc-400">${product.tagline}. El acabado exacto lo hacemos a mano en el taller.</p>
         </div>
         <button
           type="button"
-          data-product-id="${target.id}"
-          data-scroll="true"
+          data-scroll-finish
           class="mt-4 w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-zinc-950 transition-all hover:bg-amber-400"
         >
-          Personaliza el tuyo →
+          Ver acabados →
         </button>
       </article>`;
   }
+
+  const tiene3d = Boolean(product.model);
+  const sinVideo = !product.video;
   return `
     <article data-card="${product.id}" class="group overflow-hidden rounded-3xl glass">
       <div class="relative aspect-[4/3] overflow-hidden bg-zinc-950">
         <img
           src="${product.poster}"
-          alt=""
+          alt="${product.name}"
           loading="lazy"
           decoding="async"
           onerror="this.remove()"
           class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
-        <video
+        ${
+          sinVideo
+            ? ''
+            : `<video
           data-reel
           src="${product.video}"
           muted
@@ -43,8 +55,14 @@ function cardMarkup(product) {
           preload="none"
           aria-hidden="true"
           class="absolute inset-0 hidden h-full w-full object-cover"
-        ></video>
+        ></video>`
+        }
         <span class="absolute left-3 top-3 rounded-full bg-zinc-950/85 px-2.5 py-1 text-xs font-black text-amber-400">${product.price}</span>
+        ${
+          tiene3d
+            ? ''
+            : '<span class="absolute right-3 top-3 rounded-full bg-zinc-950/85 px-2.5 py-1 text-[11px] font-bold text-zinc-300">Sin 3D</span>'
+        }
       </div>
       <div class="p-4">
         <h3 class="font-bold text-zinc-100">${product.name}</h3>
@@ -55,35 +73,61 @@ function cardMarkup(product) {
           aria-pressed="false"
           class="mt-3 w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-semibold text-zinc-200 transition-colors hover:border-amber-500/60 hover:text-amber-300"
         >
-          Ver en el configurador
+          ${tiene3d ? 'Girar en 3D' : 'Ver foto'}
         </button>
       </div>
     </article>`;
 }
 
-function paletteMarkup() {
-  return PALETTES.map(
-    (p, i) => `
-    <label class="cursor-pointer">
+function acabadoMarkup(primeroId) {
+  return ACABADOS.map(
+    (a) => `
+    <label class="cursor-pointer" data-acabado-label="${a.id}">
       <input
         type="radio"
-        name="palette"
-        value="${p.id}"
-        data-palette-input
+        name="acabado"
+        value="${a.id}"
+        data-acabado-input
         class="peer sr-only"
-        ${i === 0 ? 'checked' : ''}
+        ${a.id === primeroId ? 'checked' : ''}
       />
       <span
-        class="flex items-center gap-2 rounded-full border-2 border-zinc-700 py-1.5 pl-1.5 pr-3 transition-all peer-checked:border-amber-400 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400"
-        title="${p.label}"
+        class="flex w-[92px] flex-col items-center gap-1.5 rounded-2xl border-2 border-zinc-800 p-1.5 transition-all hover:border-zinc-600 peer-checked:border-amber-400 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400"
       >
-        <span class="flex -space-x-1">
-          ${p.colors.map((c) => `<span class="h-4 w-2.5 rounded-full border border-zinc-900/40" style="background:${c}"></span>`).join('')}
-        </span>
-        <span class="text-xs font-bold text-zinc-300">${p.label}</span>
+        <img
+          src="${a.image}"
+          alt=""
+          loading="lazy"
+          decoding="async"
+          class="aspect-square w-full rounded-xl object-cover"
+        />
+        <span class="px-1 pb-0.5 text-center text-[11px] font-bold leading-tight text-zinc-300">${a.label}</span>
       </span>
-      <span class="sr-only">Acabado ${p.label}</span>
+      <span class="sr-only">Acabado ${a.label}</span>
     </label>`
+  ).join('');
+}
+
+function tallerMarkup() {
+  return VIDEOS_TALLER.map(
+    (v) => `
+    <figure class="overflow-hidden rounded-3xl glass">
+      <video
+        src="${v.src}"
+        ${v.poster ? `poster="${v.poster}"` : ''}
+        muted
+        loop
+        playsinline
+        preload="none"
+        controls
+        aria-label="${v.titulo}"
+        class="aspect-[9/16] w-full bg-zinc-950 object-cover"
+      ></video>
+      <figcaption class="p-4">
+        <h3 class="text-sm font-extrabold text-zinc-100">${v.titulo}</h3>
+        <p class="mt-1 text-xs text-zinc-500">${v.texto}</p>
+      </figcaption>
+    </figure>`
   ).join('');
 }
 
@@ -101,7 +145,7 @@ export function mountCatalog(root) {
         <p class="mt-3 text-zinc-400">Mira cada modelo en video, gíralo en 3D y elige el acabado que quieres para tu pedido.</p>
       </div>
 
-      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         ${PRODUCTS.map(cardMarkup).join('')}
       </div>
 
@@ -111,7 +155,7 @@ export function mountCatalog(root) {
 
           <div class="mt-4 rounded-3xl glass p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
-              <h3 class="text-sm font-black uppercase tracking-wide text-zinc-300">Personaliza tu tambor</h3>
+              <h3 class="text-sm font-black uppercase tracking-wide text-zinc-300">Elige el acabado</h3>
               <div class="flex items-center gap-2">
                 <span data-export-status role="status" aria-live="polite" class="text-xs text-zinc-500"></span>
                 <button
@@ -123,9 +167,9 @@ export function mountCatalog(root) {
                 </button>
               </div>
             </div>
-            <p class="mt-1 text-xs text-zinc-500">Elige el acabado y lo hacemos a mano en el taller.</p>
-            <div data-palette class="mt-4 flex flex-wrap gap-2">
-              ${paletteMarkup()}
+            <p class="mt-1 text-xs text-zinc-500">Cada acabado es un tambor real: así se ven y así se fabricate.</p>
+            <div data-acabados class="mt-4 flex flex-wrap gap-2">
+              ${acabadoMarkup(PRODUCTO_POR_DEFECTO)}
             </div>
             <button
               type="button"
@@ -152,6 +196,13 @@ export function mountCatalog(root) {
           <div class="mt-6">${contactCtaMarkup('catalog')}</div>
         </aside>
       </div>
+
+      <div class="mt-10">
+        <h3 class="text-sm font-black uppercase tracking-wide text-zinc-400">Del taller</h3>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:max-w-xl">
+          ${tallerMarkup()}
+        </div>
+      </div>
     </div>`;
 
   wireContactCta(root, 'catalog');
@@ -161,46 +212,58 @@ export function mountCatalog(root) {
   const exportAviso = root.querySelector('[data-export-aviso]');
   const exportStatus = root.querySelector('[data-export-status]');
   const orderBtn = root.querySelector('[data-order]');
+  const acabadosBox = root.querySelector('[data-acabados]');
   const selectButtons = [...root.querySelectorAll('[data-product-id]')];
 
   let handle = null;
   let initPromise = null;
-  let activeId = null;
+  // El 3D siempre muestra un producto con escaneo; el acabado elegido puede
+  // ser cualquiera de los reales, así que son dos estados separados.
+  let activeModelId = MODELOS_3D[0];
+  let selectedFinishId = PRODUCTO_POR_DEFECTO;
   let pendingId = null;
-  let selectedPalette = PALETTES[0].id;
 
   const productById = (id) => PRODUCTS.find((p) => p.id === id);
 
-  function applyProductUI(id) {
-    activeId = id;
-    host.dataset.activeProduct = id;
-    for (const btn of selectButtons) btn.setAttribute('aria-pressed', String(btn.dataset.productId === id));
+  function markButtonState(id) {
+    for (const btn of selectButtons) {
+      const p = productById(btn.dataset.productId);
+      const isModelView = p?.model && p.id === activeModelId;
+      btn.setAttribute('aria-pressed', String(Boolean(isModelView)));
+    }
+  }
+
+  function markFinishState(id) {
+    for (const input of acabadosBox.querySelectorAll('[data-acabado-input]')) {
+      input.checked = input.value === id;
+    }
   }
 
   function ensureConfigurator() {
     if (initPromise) return initPromise;
-    const first = productById(activeId ?? 'drumkid-multicolor');
+    const first = productById(activeModelId);
     initPromise = createConfigurator({
       container: host,
       modelUrl: first.model,
-      fallbackVideoUrl: first.video
+      fallbackVideoUrl: first.video ?? null
     }).then((h) => {
       handle = h;
-      if (pendingId && pendingId !== activeId) {
+      if (pendingId && pendingId !== activeModelId) {
         const id = pendingId;
         pendingId = null;
-        return selectProduct(id, { scroll: false });
+        return loadModel(id).then(() => h);
       }
       return h;
     });
     return initPromise;
   }
 
-  async function selectProduct(id, { scroll = false } = {}) {
+  async function loadModel(id) {
     const product = productById(id);
-    if (!product || product.isCta) return;
-    applyProductUI(id);
-    if (scroll) host.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!product?.model) return;
+    activeModelId = id;
+    host.dataset.activeProduct = id;
+    markButtonState(id);
     if (!handle) {
       pendingId = id;
       await ensureConfigurator();
@@ -209,23 +272,38 @@ export function mountCatalog(root) {
     await handle.setModel(product.model);
   }
 
-  // Selección desde tarjetas (incluida la CTA "Personaliza", cuyo data-product-id apunta al blanco)
-  for (const btn of selectButtons) {
-    btn.addEventListener('click', () => selectProduct(btn.dataset.productId, { scroll: btn.dataset.scroll === 'true' }));
+  // Un producto con escaneo gira en 3D; uno sin escaneo sólo se muestra su foto.
+  async function selectProduct(id, { scroll = false } = {}) {
+    const product = productById(id);
+    if (!product || product.isCta) return;
+    selectedFinishId = id;
+    markFinishState(id);
+    if (product.model) {
+      if (scroll) host.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await loadModel(id);
+      return;
+    }
+    // Sin 3D: destacamos su tarjeta y llevamos a ella la vista.
+    markButtonState(activeModelId);
+    root.querySelector(`[data-card="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  // Paleta de acabados de referencia
-  root.querySelector('[data-palette]').addEventListener('change', (e) => {
-    const input = e.target.closest('[data-palette-input]');
-    if (input) selectedPalette = input.value;
+  for (const btn of selectButtons) {
+    btn.addEventListener('click', () => selectProduct(btn.dataset.productId, { scroll: true }));
+  }
+
+  for (const input of acabadosBox.querySelectorAll('[data-acabado-input]')) {
+    input.addEventListener('change', () => selectProduct(input.value, { scroll: true }));
+  }
+
+  root.querySelector('[data-scroll-finish]')?.addEventListener('click', () => {
+    acabadosBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 
-  // Pedido por WhatsApp con mensaje pre-armado (modelo + acabado)
   if (whatsappLink('x')) {
     orderBtn.addEventListener('click', () => {
-      const product = productById(activeId ?? 'drumkid-multicolor');
-      const palette = PALETTES.find((p) => p.id === selectedPalette) ?? PALETTES[0];
-      const href = whatsappLink(`Hola, quiero un ${product.name} con acabado ${palette.label}`);
+      const product = productById(selectedFinishId) ?? productById(PRODUCTO_POR_DEFECTO);
+      const href = whatsappLink(`Hola, quiero un ${product.name}`);
       if (href) window.open(href, '_blank', 'noopener,noreferrer');
     });
   } else {
@@ -276,7 +354,7 @@ export function mountCatalog(root) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `ritmo-nama-${activeId}-360.webm`;
+        a.download = `ritmo-nama-${activeModelId}-360.webm`;
         a.click();
         URL.revokeObjectURL(url);
         exportStatus.textContent = 'Clip descargado ✓';
@@ -287,7 +365,8 @@ export function mountCatalog(root) {
   }
 
   // Inicialización perezosa: solo cuando la sección se acerca al viewport
-  applyProductUI('drumkid-multicolor');
+  markButtonState(activeModelId);
+  markFinishState(selectedFinishId);
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver(
       (entries) => {

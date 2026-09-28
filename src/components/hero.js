@@ -2,8 +2,8 @@ import { playFuliaDemo } from '../core/audio/demo.js';
 import { getAudioContext } from '../core/audio/context.js';
 import { createViewer } from '../core/three/viewer.js';
 
-const MODEL_URL = '/assets/models/Drumkidmulticolor3D.glb';
-const FALLBACK_VIDEO_URL = '/assets/video/Drumkidmulticolor3D.mp4';
+const MODEL_URL = '/assets/models/EscaneoAzul.glb';
+const FALLBACK_VIDEO_URL = '/assets/video/kit-disenos-1.mp4';
 
 // El markup del hero es HTML estático en index.html (el FCP pinta sin esperar JS):
 // este módulo solo hidrata eventos y monta el visor.

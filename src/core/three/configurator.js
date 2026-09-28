@@ -27,6 +27,23 @@ function disposeModel(model) {
 function mountVideoFallback(container, videoUrl) {
   container.innerHTML = '';
   container.classList.add('relative');
+  // Sin WebGL o si el modelo falla: si hay vídeo de respaldo, lo mostramos;
+  // si no, avisamos en vez de montar un <video src="null"> roto.
+  if (!videoUrl) {
+    container.innerHTML = `
+      <div class="flex h-full w-full flex-col items-center justify-center gap-2 rounded-3xl border border-zinc-800 bg-zinc-900 p-6 text-center">
+        <p class="text-sm font-bold text-zinc-300">No pudimos cargar la vista 3D</p>
+        <p class="max-w-xs text-xs text-zinc-500">Tu navegador no pudo reproducir el modelo. Escríbenos y te mandamos fotos del tambor.</p>
+      </div>`;
+    return {
+      setModel() {},
+      start360: async () => null,
+      isRecording: () => false,
+      destroy() {
+        container.innerHTML = '';
+      }
+    };
+  }
   const video = document.createElement('video');
   video.className = 'h-full w-full rounded-3xl border border-zinc-800 object-cover';
   video.src = videoUrl;

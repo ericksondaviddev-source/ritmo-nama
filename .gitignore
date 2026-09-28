@@ -8,3 +8,5 @@ lh-*.json
 assets drums/
 hero-shot.png
 
+# Capturas de las pruebas de navegador (Playwright MCP)
+.playwright-mcp/

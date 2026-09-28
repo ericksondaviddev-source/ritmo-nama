@@ -7,79 +7,99 @@ export const KIT_INCLUIDO = [
   'Acceso a la mini-app MidiPad'
 ];
 
+// Cada producto es un acabado real y existente: no hay recolores ficticios.
+// `model` sólo existe cuando hay escaneo 3D del tambor; el acabado se ve tal
+// cual en el modelo porque las texturas son del objeto real.
 export const PRODUCTS = [
   {
-    id: 'drumkid-multicolor',
-    name: 'Drumkid Multicolor',
-    tagline: 'Splatter artesanal, el más alegre',
+    id: 'azul-rayas',
+    name: 'Tambor Azul Rayas',
+    tagline: 'Cilindro turquesa con galones negros y cuerda',
     price: '49 $',
-    model: '/assets/models/Drumkidmulticolor3D.glb',
-    video: '/assets/video/Drumkidmulticolor3D.mp4',
-    poster: '/assets/img/drumskidmulticolor.jpg',
+    model: '/assets/models/EscaneoAzul.glb',
+    poster: '/assets/img/escaneo-azul.jpg',
+    foto: '/assets/img/tambor-azul-rayas.jpg',
+    video: '/assets/video/kit-disenos-1.mp4',
     customizable: true
   },
   {
-    id: 'drumkid-clasico',
-    name: 'Drumkid Clásico',
-    tagline: 'Madera natural, clásico de siempre',
+    id: 'gris-plateado',
+    name: 'Tambor Gris Plateado',
+    tagline: 'Cuerpo oscuro con parche rojo y cuerda blanca',
     price: '49 $',
-    model: '/assets/models/Drumkid3D.glb',
-    video: '/assets/video/Drumkid3D.mp4',
-    poster: '/assets/img/Red_wooden_drum_with_mallet_20260925130521.jpg',
+    model: '/assets/models/EscaneoGris.glb',
+    poster: '/assets/img/escaneo-gris.jpg',
+    video: '/assets/video/kit-disenos-2.mp4',
     customizable: true
   },
   {
-    id: 'set-nama',
-    name: "Set Na'má",
-    tagline: 'Exhibidor con diseños variados',
-    price: '49 $ por unidad',
-    model: '/assets/models/Mostradordrums.glb',
-    video: '/assets/video/mostradordrum.mp4',
-    poster: '/assets/img/Colorful_drums_on_wooden_shelf.jpg',
+    id: 'negro-chispas',
+    name: 'Tambor Negro Chispas',
+    tagline: 'Negro con cuerda blanca y etiqueta dorada',
+    price: '49 $',
+    model: '/assets/models/EscaneoNegro.glb',
+    poster: '/assets/img/escaneo-negro.jpg',
+    video: '/assets/video/kit-disenos-3.mp4',
+    customizable: true
+  },
+  {
+    id: 'rayas',
+    name: 'Tambor Rayas',
+    tagline: 'Rayas verticales, pintado a mano',
+    price: '49 $',
+    model: null,
+    poster: '/assets/img/tambor-rayas.jpg',
+    video: null,
+    customizable: false
+  },
+  {
+    id: 'kit-clasico',
+    name: 'Kit Clásico',
+    tagline: 'Tambor, baqueta y forro de obsequio',
+    price: '49 $',
+    model: null,
+    poster: '/assets/img/kit-clasico.jpg',
+    video: '/assets/video/multicolor-estrella.mp4',
     customizable: false
   },
   {
     id: 'personaliza',
     name: 'Personaliza el tuyo',
-    tagline: 'Tú diseñas, nosotros fabricamos',
+    tagline: 'Tú eliges el acabado, nosotros lo fabricamos',
     price: 'A medida',
     isCta: true,
-    customizes: 'drumkid-multicolor'
+    customizes: 'azul-rayas'
   }
 ];
 
-export const FINISHES = {
-  wood: [
-    { id: 'original', label: 'Original', hex: '#ffffff' },
-    { id: 'nogal', label: 'Nogal', hex: '#7c4a26' },
-    { id: 'caoba', label: 'Caoba', hex: '#9a3a28' },
-    { id: 'oro', label: 'Oro viejo', hex: '#c08a2e' }
-  ],
-  head: [
-    { id: 'original', label: 'Original', hex: '#ffffff' },
-    { id: 'marfil', label: 'Marfil', hex: '#f1e3c6' },
-    { id: 'negro', label: 'Negro', hex: '#3f3f46' },
-    { id: 'rojo', label: 'Rojo fulia', hex: '#c2413a' }
-  ],
-  trim: [
-    { id: 'original', label: 'Original', hex: '#ffffff' },
-    { id: 'dorado', label: 'Dorado', hex: '#d9a441' },
-    { id: 'verde', label: 'Verde tambor', hex: '#3f9b7d' },
-    { id: 'coral', label: 'Coral', hex: '#e0615a' }
-  ]
-};
+// Productos que tienen escaneo 3D y se pueden girar en el configurador.
+export const MODELOS_3D = PRODUCTS.filter((p) => p.model).map((p) => p.id);
 
-export const FINISH_ZONES = [
-  { id: 'wood', label: 'Madera del cilindro' },
-  { id: 'head', label: 'Parches' },
-  { id: 'trim', label: 'Lazos y baqueta' }
-];
+// Acabados disponibles = los productos reales, cada uno con su imagen.
+// No es un selector de color: es un selector de tambor existente.
+export const ACABADOS = PRODUCTS.filter((p) => !p.isCta).map((p) => ({
+  id: p.id,
+  label: p.name,
+  image: p.poster,
+  model: p.model
+}));
 
-// Acabados de referencia para la personalización (el fabricante los hace a mano)
-export const PALETTES = [
-  { id: 'splatter-clasico', label: 'Splatter Clásico', colors: ['#dc2626', '#f59e0b', '#3b82f6'] },
-  { id: 'rojo-fulia', label: 'Rojo Fulia', colors: ['#b91c1c', '#dc2626', '#7f1d1d'] },
-  { id: 'azul-guaira', label: 'Azul Guaira', colors: ['#1d4ed8', '#3b82f6', '#0ea5e9'] },
-  { id: 'verde-tambor', label: 'Verde Tambor', colors: ['#047857', '#059669', '#10b981'] },
-  { id: 'negro-caoba', label: 'Negro Caoba', colors: ['#1c1917', '#44403c', '#78716c'] }
+export const PRODUCTO_POR_DEFECTO = 'azul-rayas';
+
+// Vídeos del taller, fuera del catálogo de producto.
+export const VIDEOS_TALLER = [
+  {
+    id: 'personas',
+    src: '/assets/video/personas-tambores.mp4',
+    poster: null,
+    titulo: 'Tambores en la fiesta',
+    texto: 'Cuando suena la fulia, el barrio se junta.'
+  },
+  {
+    id: 'taller',
+    src: '/assets/video/recorrido-taller.mp4',
+    poster: '/assets/img/taller-proceso.jpg',
+    titulo: 'Recorrido por el taller',
+    texto: 'Del vaso al parche, paso a paso.'
+  }
 ];
