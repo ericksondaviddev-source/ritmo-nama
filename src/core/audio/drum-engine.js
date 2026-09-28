@@ -1,7 +1,7 @@
-import { getNoiseBuffer, noiseOffset } from './noise.js';
+import { getNoiseBuffer, getReverbImpulse, noiseOffset } from './noise.js';
 import { voiceSpec } from './voices.js';
 
-export function createDrumEngine(getContext, { masterVolume = 0.85 } = {}) {
+export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel = 0.14 } = {}) {
   let master = null;
   let masterContext = null;
   let volume = masterVolume;
@@ -10,7 +10,19 @@ export function createDrumEngine(getContext, { masterVolume = 0.85 } = {}) {
     if (!master || masterContext !== ctx) {
       master = ctx.createGain();
       master.gain.value = volume;
-      master.connect(ctx.destination);
+      // Seco al destino + húmedo por convolución (impulso procedural)
+      if (typeof ctx.createConvolver === 'function') {
+        const convolver = ctx.createConvolver();
+        convolver.buffer = getReverbImpulse(ctx);
+        const wet = ctx.createGain();
+        wet.gain.value = reverbLevel;
+        master.connect(ctx.destination);
+        master.connect(convolver);
+        convolver.connect(wet);
+        wet.connect(ctx.destination);
+      } else {
+        master.connect(ctx.destination);
+      }
       masterContext = ctx;
     }
     return master;
@@ -45,8 +57,9 @@ export function createDrumEngine(getContext, { masterVolume = 0.85 } = {}) {
       source.connect(filter);
       filter.connect(gain);
       gain.connect(destination);
-      const stopAt = t + Math.max(spec.duration, spec.decay) + 0.01;
-      source.start(t, noiseOffset(ctx));
+      const at = spec.at ?? 0;
+      const stopAt = t + at + Math.max(spec.duration, spec.decay) + 0.01;
+      source.start(t + at, noiseOffset(ctx));
       source.stop(stopAt);
     }
   }

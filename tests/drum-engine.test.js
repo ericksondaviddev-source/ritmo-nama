@@ -13,22 +13,38 @@ const gainNodes = (ctx) => ctx.log.filter((e) => e.op === 'createGain').map((e) 
 const eventsFor = (ctx, node) => ctx.log.filter((e) => e.node === node);
 
 describe('drum-engine', () => {
-  it('pujao genera 1 oscilador con caída 130→48 y stop en t+0.48', () => {
+  it('pujao v2 genera 3 osciladores; el cuerpo cae 110→48 y para en t+0.6', () => {
     const { ctx, engine } = rig();
     engine.trigger('pujao', { time: 2 });
 
-    const [osc] = oscNodes(ctx);
-    expect(osc.type).toBe('sine');
+    const oscs = oscNodes(ctx);
+    expect(oscs).toHaveLength(3);
+    expect(oscs[0].type).toBe('sine'); // cuerpo
 
-    const ev = eventsFor(ctx, osc);
+    const ev = eventsFor(ctx, oscs[0]);
     const set = ev.find((e) => e.name === 'frequency' && e.op === 'setValueAtTime');
-    expect(set).toMatchObject({ v: 130, t: 2 });
+    expect(set).toMatchObject({ v: 110, t: 2 });
 
     const ramp = ev.find((e) => e.name === 'frequency' && e.op === 'exponentialRampToValueAtTime');
     expect(ramp.v).toBeCloseTo(48);
-    expect(ramp.t).toBeCloseTo(2.18);
+    expect(ramp.t).toBeCloseTo(2.16);
 
-    expect(ev.find((e) => e.op === 'stop').t).toBeCloseTo(2.48);
+    expect(ev.find((e) => e.op === 'stop').t).toBeCloseTo(2.6);
+  });
+
+  it('prima v2 genera capas: cuerpo + ring + ruido de ataque', () => {
+    const { ctx, engine } = rig();
+    engine.trigger('prima', { time: 0 });
+    expect(oscNodes(ctx)).toHaveLength(2); // cuerpo + ring
+    expect(ctx.log.filter((e) => e.op === 'createBufferSource')).toHaveLength(2); // slap + aire
+  });
+
+  it('maracas hace doble sacudida (segunda ráfaga a t+0.018)', () => {
+    const { ctx, engine } = rig();
+    engine.trigger('maracas', { time: 1 });
+    const sources = ctx.log.filter((e) => e.op === 'start').map((e) => e);
+    expect(sources).toHaveLength(2);
+    expect(sources[1].t).toBeCloseTo(1.018);
   });
 
   it('el acento multiplica la ganancia por 1.3', () => {
