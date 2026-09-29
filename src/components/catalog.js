@@ -139,7 +139,6 @@ function tallerMarkup() {
       <video
         src="${v.src}"
         ${v.poster ? `poster="${v.poster}"` : ''}
-        muted
         loop
         playsinline
         preload="none"

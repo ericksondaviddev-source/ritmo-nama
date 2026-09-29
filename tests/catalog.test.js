@@ -112,6 +112,34 @@ describe('marcado del catálogo', () => {
   });
 });
 
+// Barrido de toda la app, no solo del catálogo: si alguien escribe una ruta a
+// mano en cualquier componente, tiene que existir.
+describe('referencias de medios en todo el código', () => {
+  it('ninguna ruta /assets/... citada en src/ o index.html falta en public/', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const salida = execFileSync(process.execPath, ['scripts/check-asset-refs.mjs'], {
+      encoding: 'utf8'
+    });
+    expect(salida).not.toMatch(/FALTA/);
+    expect(salida).toMatch(/todas existen/);
+  });
+});
+
+// El decoder Draco es la diferencia entre que el 3D funcione o que la vista
+// caiga al vídeo de respaldo sin avisar. Tiene que llegar a dist/.
+describe('despliegue', () => {
+  it('el decodificador Draco está en public/ y en el build', () => {
+    for (const f of ['draco/draco_decoder.wasm', 'draco/draco_wasm_wrapper.js']) {
+      expect(existsSync(path.join(ROOT, 'public', f)), f).toBe(true);
+    }
+    const dist = path.join(ROOT, 'dist', 'draco', 'draco_decoder.wasm');
+    // Sólo si ya se construyó; el test no debe exigir un build previo.
+    if (existsSync(path.join(ROOT, 'dist'))) {
+      expect(existsSync(dist), 'falta el decoder en dist; ejecuta npm run build').toBe(true);
+    }
+  });
+});
+
 describe('vídeos del taller', () => {
   it('existen en disco y tienen título', () => {
     expect(VIDEOS_TALLER.length).toBeGreaterThanOrEqual(2);

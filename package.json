@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:assets": "node scripts/check-asset-refs.mjs",
     "optimize:models": "node scripts/optimize-models.mjs",
     "import:scans": "node --max-old-space-size=8192 scripts/import-scans.mjs",
     "optimize:scans": "node --max-old-space-size=8192 scripts/optimize-scans.mjs",
