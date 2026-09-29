@@ -1,11 +1,13 @@
 ﻿import { PATTERNS } from '../data/patterns.js';
-import { COURSE } from '../data/course.js';
+import { COURSE, COURSE_INTRO } from '../data/course.js';
+import { ARTICULATIONS } from '../data/drums.js';
 import { playSoloLoop } from '../core/audio/loop.js';
 
 function patternStrip(mod) {
   const pattern = PATTERNS.find((p) => p.id === mod.patternId);
   const steps = pattern.steps[mod.instrument];
   const accents = pattern.accents[mod.instrument];
+  const artic = ARTICULATIONS[mod.articulation] ?? ARTICULATIONS.laurel;
   return `
     <div class="flex gap-1" role="img" aria-label="Patrón de ${mod.title}: 12 pasos en 6/8">
       ${steps
@@ -18,7 +20,8 @@ function patternStrip(mod) {
         )
         .join('')}
     </div>
-    <p class="mt-1 text-[11px] text-zinc-600">12 pasos · métrica 6/8 · <span class="text-amber-500/80">■</span> acento</p>`;
+    <p class="mt-1 text-[11px] text-zinc-600">12 pasos · métrica 6/8 · <span class="text-amber-500/80">■</span> acento</p>
+    <p class="mt-0.5 text-[11px] text-zinc-600" title="${artic.hint}">Se toca: <span class="text-zinc-400">${artic.label}</span></p>`;
 }
 
 export function mountCourse(root, { engine } = {}) {
@@ -30,10 +33,15 @@ export function mountCourse(root, { engine } = {}) {
       <div class="max-w-2xl">
         <span class="text-xs font-bold uppercase tracking-widest text-amber-500">Mini-curso</span>
         <h2 id="course-title" class="mt-2 text-3xl font-extrabold tracking-tight text-zinc-50 sm:text-4xl">
-          Aprende la fulia <span class="text-amber-400">voz por voz</span>
+          Aprende la fulia <span class="text-amber-400">tambor por tambor</span>
         </h2>
-        <p class="mt-3 text-zinc-400">Cuatro módulos para niños: qué hace cada instrumento, cómo tocarlo sin lastimarte y su patrón rítmico.</p>
+        <p class="mt-3 text-zinc-400">La fulia son cuatro tambores. Aquí está qué hace cada uno, cómo se toca con laurel y con la mano, y el patrón que lo respalda.</p>
       </div>
+
+      <section class="mt-8 rounded-3xl glass p-6">
+        <h3 class="text-lg font-extrabold text-zinc-100">${COURSE_INTRO.titulo}</h3>
+        <p class="mt-2 text-sm leading-relaxed text-zinc-400">${COURSE_INTRO.intro}</p>
+      </section>
 
       <div class="mt-8 grid gap-4 sm:grid-cols-2">
         ${COURSE.map(
@@ -110,7 +118,12 @@ export function mountCourse(root, { engine } = {}) {
         return;
       }
       stopActive();
-      active = playSoloLoop({ engine, patternId: mod.patternId, drumId: mod.instrument });
+      active = playSoloLoop({
+        engine,
+        patternId: mod.patternId,
+        drumId: mod.instrument,
+        articulation: mod.articulation
+      });
       if (active) {
         activeInstrument = mod.instrument;
         btn.setAttribute('aria-pressed', 'true');
