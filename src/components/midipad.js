@@ -1,6 +1,7 @@
 ﻿import { ARTICULATIONS, DRUMS } from '../data/drums.js';
 import { PATTERNS } from '../data/patterns.js';
 import { createMidipadAudio } from '../core/audio/midipad.js';
+import { reclamarConAviso } from '../core/audio/transport.js';
 
 const RECORD_MAX_MS = 60000;
 
@@ -157,8 +158,28 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
   }
 
   // La rejilla y los selectores son dos vistas del mismo estado: si otra sección
-  // (o el exportador de vídeo) cambia la composición, esto se entera.
-  const unsubscribe = audio.subscribe(() => refreshGrid());
+  // (o el exportador de vídeo) cambia la composición, esto se entera. Pero al
+  // tocar una celda el propio manejador ya repinta esa celda, así que aquí sólo
+  // se repinta cuando el cambio viene de fuera: si no, cada toque recorrería las
+  // 48 celdas del DOM.
+  let ultimo = { patron: audio.state.patternId, artic: articulacionSignature() };
+  const unsubscribe = audio.subscribe(() => {
+    const patron = audio.state.patternId;
+    const artic = articulacionSignature();
+    if (patron !== ultimo.patron) {
+      ultimo = { patron, artic };
+      refreshGrid();
+      return;
+    }
+    if (artic !== ultimo.artic) {
+      ultimo.artic = artic;
+      refreshArticulations();
+    }
+  });
+
+  function articulacionSignature() {
+    return DRUMS.map((d) => `${d.id}:${audio.state.articulation[d.id]}`).join('|');
+  }
 
   // Pads multi-touch: pointerdown cicla y hace preview del golpe
   grid.addEventListener('pointerdown', (e) => {
@@ -187,18 +208,26 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
     if (next > 0 && ctx) audio.playHit(drumId, ctx.currentTime, next);
   });
 
-  // Transport
+  // Transporte. Sólo un reproductor puede sonar: si arranca otro (el curso, el
+  // exportador de vídeo), éste se para y su botón vuelve a.enabled.
   const playBtn = root.querySelector('[data-play]');
   const stopBtn = root.querySelector('[data-stop]');
+  const reposo = () => {
+    playBtn.disabled = false;
+    stopBtn.disabled = true;
+  };
+  const transporte = reclamarConAviso({ stop: () => audio.stop() }, reposo);
+
   playBtn.addEventListener('click', () => {
+    transporte.start();
     audio.start();
     playBtn.disabled = true;
     stopBtn.disabled = false;
   });
   stopBtn.addEventListener('click', () => {
     audio.stop();
-    playBtn.disabled = false;
-    stopBtn.disabled = true;
+    transporte.release();
+    reposo();
   });
 
   const presetSel = root.querySelector('[data-preset]');
@@ -405,6 +434,7 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
   return {
     destroy() {
       unsubscribe?.();
+      transporte.release();
       audio.stop();
       if (loopRecorder && loopRecorder.state !== 'inactive') loopRecorder.stop();
       if (voiceRecorderActive && voiceRecorderActive.state !== 'inactive') voiceRecorderActive.stop();

@@ -1,6 +1,7 @@
 import { PATTERNS } from '../data/patterns.js';
 import { DRUMS } from '../data/drums.js';
 import { createVisualizer } from '../core/audio/visualizer.js';
+import { reclamar } from '../core/audio/transport.js';
 
 const MAX_SEC = 30;
 const MIME_CANDIDATES = [
@@ -93,6 +94,13 @@ export function mountVideoExport(root, { engine, getContext, audio: composition 
   let recording = false;
   let maxTimer = null;
   let mime = '';
+  // Grabar el vídeo con un loop del curso sonando se oiría el loop por el
+  // micrófono: al tomar el transporte, aquél se calla.
+  const transporte = reclamar({
+    stop() {
+      if (visualizer?.isRunning) visualizer.stop();
+    }
+  });
 
   // Los controles se bloquean durante la toma: cambiarlos en caliente
   // reiniciaría el visualizador y dejaría el canvas congelado.
@@ -172,6 +180,7 @@ export function mountVideoExport(root, { engine, getContext, audio: composition 
 
     mime = chosenMime;
     recording = true;
+    transporte.start();
     setControlsDisabled(true);
     status.textContent = 'Grabando vídeo…';
 
@@ -192,6 +201,7 @@ export function mountVideoExport(root, { engine, getContext, audio: composition 
       cleanupStreams();
       engine.disconnectOutput(audioDest);
       recording = false;
+      transporte.release();
       setControlsDisabled(false);
       status.textContent = 'No se pudo iniciar la grabación.';
       return;
@@ -213,6 +223,7 @@ export function mountVideoExport(root, { engine, getContext, audio: composition 
       cleanupStreams();
       engine.disconnectOutput(audioDest);
       recording = false;
+      transporte.release();
       setControlsDisabled(false);
       status.textContent = 'Este navegador no pudo iniciar el visualizador.';
       return;
@@ -245,6 +256,7 @@ export function mountVideoExport(root, { engine, getContext, audio: composition 
       cleanupStreams();
       recorder = null;
       recording = false;
+      transporte.release();
       setControlsDisabled(false);
     };
     recorder.onerror = () => {

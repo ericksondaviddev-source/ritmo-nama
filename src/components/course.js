@@ -2,6 +2,7 @@
 import { COURSE, COURSE_INTRO } from '../data/course.js';
 import { ARTICULATIONS } from '../data/drums.js';
 import { playSoloLoop } from '../core/audio/loop.js';
+import { reclamar } from '../core/audio/transport.js';
 
 function patternStrip(mod) {
   const pattern = PATTERNS.find((p) => p.id === mod.patternId);
@@ -110,14 +111,19 @@ export function mountCourse(root, { engine } = {}) {
     activeInstrument = null;
   }
 
+  // Un solo loop sonando: si arranca el Midipad o una grabación, éste se para.
+  const transporte = reclamar({ stop: stopActive });
+
   for (const mod of COURSE) {
     const btn = root.querySelector(`[data-course-play="${mod.instrument}"]`);
     btn.addEventListener('click', () => {
       if (activeInstrument === mod.instrument) {
         stopActive();
+        transporte.release();
         return;
       }
       stopActive();
+      transporte.start();
       active = playSoloLoop({
         engine,
         patternId: mod.patternId,
@@ -127,6 +133,8 @@ export function mountCourse(root, { engine } = {}) {
       if (active) {
         activeInstrument = mod.instrument;
         btn.setAttribute('aria-pressed', 'true');
+      } else {
+        transporte.release();
       }
     });
     const nBtn = root.querySelector(`[data-course-narration="${mod.instrument}"]`);
@@ -142,6 +150,7 @@ export function mountCourse(root, { engine } = {}) {
 
   return {
     destroy() {
+      transporte.release();
       stopActive();
     }
   };
