@@ -1,14 +1,14 @@
 export const KIT_INCLUIDO = [
-  'Doble parche sintético impermeable',
+  'Doble parche sintÃ©tico impermeable',
   'Baqueta profesional de obsequio',
   'Forro de tela de obsequio',
-  'Garantía de 6 meses',
+  'GarantÃ­a de 6 meses',
   'Acceso al minicurso de fulia',
   'Acceso a la mini-app MidiPad'
 ];
 
 // Cada producto es un acabado real y existente: no hay recolores ficticios.
-// `model` sólo existe cuando hay escaneo 3D del tambor; el acabado se ve tal
+// `model` sÃ³lo existe cuando hay escaneo 3D del tambor; el acabado se ve tal
 // cual en el modelo porque las texturas son del objeto real.
 export const PRODUCTS = [
   {
@@ -48,7 +48,7 @@ export const PRODUCTS = [
     tagline: 'Madera clara, sin pintar',
     price: '49 $',
     model: '/assets/models/EscaneoMaderaClara.glb',
-    poster: null, // falta la foto del taller; el 3D ya está listo
+    poster: null, // falta la foto del taller; el 3D ya estÃ¡ listo
     video: null,
     customizable: true
   },
@@ -58,7 +58,7 @@ export const PRODUCTS = [
     tagline: 'Madera oscura, tono profundo',
     price: '49 $',
     model: '/assets/models/EscaneoMaderaOscura.glb',
-    poster: null, // falta la foto del taller; el 3D ya está listo
+    poster: null, // falta la foto del taller; el 3D ya estÃ¡ listo
     video: null,
     customizable: true
   },
@@ -73,7 +73,7 @@ export const PRODUCTS = [
     customizable: false
   },  {
     id: 'kit-clasico',
-    name: 'Kit Clásico',
+    name: 'Kit ClÃ¡sico',
     tagline: 'Tambor, baqueta y forro de obsequio',
     price: '49 $',
     model: null,
@@ -84,7 +84,7 @@ export const PRODUCTS = [
   {
     id: 'personaliza',
     name: 'Personaliza el tuyo',
-    tagline: 'Tú eliges el acabado, nosotros lo fabricamos',
+    tagline: 'TÃº eliges el acabado, nosotros lo fabricamos',
     price: 'A medida',
     isCta: true,
     customizes: 'azul-rayas'
@@ -105,9 +105,9 @@ export const ACABADOS = PRODUCTS.filter((p) => !p.isCta).map((p) => ({
 
 export const PRODUCTO_POR_DEFECTO = 'azul-rayas';
 
-// Vídeos del taller y de la comunidad, fuera del catálogo de producto.
+// VÃ­deos del taller y de la comunidad, fuera del catÃ¡logo de producto.
 // `ancho: true` los reserva para una franja apaisada: en vertical se ven
-// pequeños y en horizontal son el propio protagonista.
+// pequeÃ±os y en horizontal son el propio protagonista.
 export const VIDEOS_TALLER = [
   {
     id: 'plaza',

@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -72,6 +72,43 @@ describe('acabados honestos', () => {
 
   it('el producto por defecto existe y es real', () => {
     expect(reales.some((p) => p.id === PRODUCTO_POR_DEFECTO)).toBe(true);
+  });
+
+  it('ningún acabado apunta a una imagen nula o a un archivo que falte', () => {
+    for (const a of ACABADOS) {
+      if (a.image) expect(a.image.startsWith('/assets/img/'), a.id).toBe(true);
+      // Si no hay imagen, la vista usa el marcador: nunca src="null".
+      if (!a.image) expect(a.image).toBeNull();
+    }
+  });
+});
+
+// Regresión: un producto sin foto del taller llegó al `src` de la <img> y
+// produjo `src="null"`. Se comprueba sobre el HTML realmente generado, no sobre
+// los datos, que es donde se escapa el fallo.
+describe('marcado del catálogo', () => {
+  const sinFoto = reales.find((p) => p.poster === null);
+  it('hay al menos un producto sin foto, para cubrir el caso', () => {
+    expect(sinFoto).toBeTruthy();
+  });
+
+  it('el componente no emite src nulo, undefined ni vacío', async () => {
+    const { __catalogMarkup } = await import('../src/components/catalog.js');
+    const html = __catalogMarkup();
+    expect(html).toContain('data-card=');
+    // Un src interpolado sin comprobar acaba siendo src="null": aquí no.
+    expect(html).not.toMatch(/src="(null|undefined|)"/);
+    // Y los productos sin foto llevan el marcador, no una <img> vacía.
+    for (const p of reales.filter((x) => !x.poster)) {
+      expect(html, p.id).toContain('Foto pendiente');
+    }
+  });
+
+  it('toda ruta de medio que aparece en el HTML existe en disco', async () => {
+    const { __catalogMarkup } = await import('../src/components/catalog.js');
+    const rutas = [...__catalogMarkup().matchAll(/(?:src|poster)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
+    expect(rutas.length).toBeGreaterThan(0);
+    for (const r of rutas) expect(enDisco(r), r).toBe(true);
   });
 });
 

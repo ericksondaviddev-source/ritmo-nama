@@ -10,6 +10,18 @@ import { canExport360, createConfigurator } from '../core/three/configurator.js'
 import { contactCtaMarkup, wireContactCta } from './contact-cta.js';
 import { whatsappLink } from '../data/config.js';
 
+/**
+ * Marcador para un producto que aún no tiene foto del taller. Se declara una
+ * sola vez y se reutiliza tanto en las tarjetas como en el selector de
+ * acabados, y también cuando una imagen falla al cargar.
+ */
+function sinFoto(clases = 'absolute inset-0') {
+  return `<div class="${clases} flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl bg-zinc-900 text-center">
+    <span aria-hidden="true" class="text-lg">🛠️</span>
+    <span class="px-1 text-[10px] font-bold leading-tight text-zinc-500">Foto pendiente</span>
+  </div>`;
+}
+
 function cardMarkup(product) {
   if (product.isCta) {
     const target = PRODUCTS.find((p) => p.id === product.customizes);
@@ -43,11 +55,7 @@ function cardMarkup(product) {
           onerror="this.remove()"
           class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />`
-    : `<div class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-zinc-900 text-center">
-         <span aria-hidden="true" class="text-2xl">🛠️</span>
-         <span class="text-xs font-bold text-zinc-400">Foto del taller pendiente</span>
-         <span class="text-[11px] text-zinc-600">Ya puedes girarlo en 3D</span>
-       </div>`;
+    : sinFoto();
   return `
     <article data-card="${product.id}" class="group overflow-hidden rounded-3xl glass">
       <div class="relative aspect-[4/3] overflow-hidden bg-zinc-950">
@@ -103,14 +111,18 @@ function acabadoMarkup(primeroId) {
       <span
         class="flex w-[92px] flex-col items-center gap-1.5 rounded-2xl border-2 border-zinc-800 p-1.5 transition-all hover:border-zinc-600 peer-checked:border-amber-400 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400"
       >
-        <img
+        ${
+          a.image
+            ? `<img
           src="${a.image}"
           alt=""
           loading="lazy"
           decoding="async"
-          onerror="this.style.visibility='hidden'"
+          onerror="this.replaceWith(window.__sinFoto())"
           class="aspect-square w-full rounded-xl object-cover"
-        />
+        />`
+            : sinFoto('w-full')
+        }
         <span class="px-1 pb-0.5 text-center text-[11px] font-bold leading-tight text-zinc-300">${a.label}</span>
       </span>
       <span class="sr-only">Acabado ${a.label}</span>
@@ -150,8 +162,20 @@ function tallerMarkup() {
     <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:max-w-xl">${vertical.map((v) => card(v, '9/16')).join('')}</div>`;
 }
 
+/**
+ * Markup de las tarjetas y del selector de acabados, expuesto para poder
+ * auditarlo en los tests sin necesidad de un DOM. Si algún producto pierde su
+ * foto, aquí se ve que sale el marcador y nunca un src inválido.
+ */
+export const __catalogMarkup = () =>
+  PRODUCTS.map(cardMarkup).join('') + acabadoMarkup(PRODUCTO_POR_DEFECTO) + tallerMarkup();
+
 export function mountCatalog(root) {
   if (!root) return null;
+
+  // El onerror de las <img> lo usa cuando una foto no carga: mismo marcador,
+  // no un hueco raro ni un src="null".
+  window.__sinFoto = () => sinFoto();
 
   root.className = 'border-b border-zinc-900 py-16';
   root.innerHTML = `
