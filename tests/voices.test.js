@@ -89,14 +89,21 @@ describe('voz: afinación y casos límite', () => {
     expect(uno[0].filter.freq * 2).toBeCloseTo(dos[0].filter.freq);
   });
 
-  it('sin artefactos: toda frecuencia y ganancia es un número finito positivo', () => {
+  it('sin artefactos: toda frecuencia, ganancia y duración es un número finito', () => {
     for (const id of ['prima', 'cruzao', 'pujao', 'paila']) {
       for (const s of layersOf(id, 1.25, 'laurel')) {
-        const nums = [s.gain, s.decay, s.from, s.to, s.filter?.freq].filter((v) => v !== undefined);
+        // `duration` es obligatorio en el ruido: sin él, source.stop(NaN) lanza
+        // y se cae el golpe entero. El motor lo defiende, pero el dato debe
+        // estar bien por sí mismo.
+        const nums = [s.gain, s.decay, s.duration, s.from, s.to, s.filter?.freq].filter(
+          (v) => v !== undefined
+        );
         for (const n of nums) {
           expect(Number.isFinite(n), `${id} ${JSON.stringify(s)}`).toBe(true);
           expect(n).toBeGreaterThan(0);
         }
+        if (s.kind === 'osc') expect(s.stop, id).toBeGreaterThan(0);
+        if (s.kind === 'noise') expect(s.duration, id).toBeGreaterThan(0);
       }
     }
   });

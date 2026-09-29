@@ -219,10 +219,19 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
   const transporte = reclamarConAviso({ stop: () => audio.stop() }, reposo);
 
   playBtn.addEventListener('click', () => {
-    transporte.start();
-    audio.start();
-    playBtn.disabled = true;
-    stopBtn.disabled = false;
+    try {
+      transporte.start();
+      audio.start();
+      playBtn.disabled = true;
+      stopBtn.disabled = false;
+    } catch (err) {
+      // Si el audio no arranca, el transporte no puede quedar tomado: si no,
+      // el curso y la grabación no podrían volver a sonar.
+      audio.stop();
+      transporte.release();
+      reposo();
+      console.error('[midipad] no se pudo iniciar el transporte:', err);
+    }
   });
   stopBtn.addEventListener('click', () => {
     audio.stop();

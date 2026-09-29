@@ -43,19 +43,30 @@ export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel 
     return master;
   }
 
-  function renderVoice(ctx, spec, t, destination) {
+  /**
+ * Un valor no finito en un parámetro de AudioParam lanza una excepción que
+ * corta el golpe entero. Aquí se filtra y se sustituye por un valor seguro, para
+ * que un dato mal escrito degrade el sonido en vez de silenciar la app.
+ */
+const finito = (v, porDefecto) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : porDefecto);
+
+function renderVoice(ctx, spec, t, destination) {
     if (spec.kind === 'osc') {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = spec.type;
-      osc.frequency.setValueAtTime(spec.from, t);
-      if (spec.glide > 0) osc.frequency.exponentialRampToValueAtTime(spec.to, t + spec.glide);
-      gain.gain.setValueAtTime(spec.gain, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + spec.decay);
+      const from = finito(spec.from, 220);
+      const to = finito(spec.to, from);
+      const decay = finito(spec.decay, 0.2);
+      const stop = finito(spec.stop, decay + 0.02);
+      osc.type = spec.type ?? 'sine';
+      osc.frequency.setValueAtTime(from, t);
+      if (finito(spec.glide, 0) > 0) osc.frequency.exponentialRampToValueAtTime(to, t + spec.glide);
+      gain.gain.setValueAtTime(finito(spec.gain, 0.5), t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + decay);
       osc.connect(gain);
       gain.connect(destination);
       osc.start(t);
-      osc.stop(t + spec.stop);
+      osc.stop(t + stop);
       return;
     }
 
@@ -63,19 +74,25 @@ export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel 
       const source = ctx.createBufferSource();
       source.buffer = getNoiseBuffer(ctx);
       const filter = ctx.createBiquadFilter();
-      filter.type = spec.filter.type;
-      filter.frequency.setValueAtTime(spec.filter.freq, t);
-      if (typeof spec.filter.q === 'number') filter.Q.setValueAtTime(spec.filter.q, t);
+      filter.type = spec.filter?.type ?? 'lowpass';
+      const freq = finito(spec.filter?.freq, 1000);
+      filter.frequency.setValueAtTime(freq, t);
+      if (typeof spec.filter?.q === 'number' && Number.isFinite(spec.filter.q)) {
+        filter.Q.setValueAtTime(spec.filter.q, t);
+      }
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(spec.gain, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + spec.decay);
+      const decay = finito(spec.decay, 0.06);
+      gain.gain.setValueAtTime(finito(spec.gain, 0.4), t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + decay);
       source.connect(filter);
       filter.connect(gain);
       gain.connect(destination);
-      const at = spec.at ?? 0;
-      const stopAt = t + at + Math.max(spec.duration, spec.decay) + 0.01;
+      const at = Number.isFinite(spec.at) ? spec.at : 0;
+      // `duration` es imprescindible: Math.max(undefined, decay) es NaN y
+      // AudioBufferSourceNode.stop(NaN) lanza.
+      const duration = finito(spec.duration, decay);
       source.start(t + at, noiseOffset(ctx));
-      source.stop(stopAt);
+      source.stop(t + at + Math.max(duration, decay) + 0.01);
     }
   }
 
