@@ -10,6 +10,17 @@ function rig() {
 
 const oscNodes = (ctx) => ctx.log.filter((e) => e.op === 'createOscillator').map((e) => e.node);
 const gainNodes = (ctx) => ctx.log.filter((e) => e.op === 'createGain').map((e) => e.node);
+/**
+ * El gain maestro es el único que alimenta la suma seco+húmedo, es decir, el
+ * primero de la cadena y el único sin paneo detrás. Los demás gains de un golpe
+ * cuelgan de un panner.
+ */
+const masterGain = (ctx) => {
+  const candidatos = gainNodes(ctx).filter((n) =>
+    n.connections.some((c) => c.type === 'compressor' || c.type === 'waveshaper' || c.type === 'convolver')
+  );
+  return candidatos[0];
+};
 const eventsFor = (ctx, node) => ctx.log.filter((e) => e.node === node);
 
 describe('drum-engine', () => {
@@ -122,17 +133,22 @@ describe('drum-engine', () => {
     const { ctx, engine } = rig();
     engine.trigger('paila', { time: 0 });
     engine.trigger('paila', { time: 0.5 });
-    expect(ctx.buffersCreated).toBe(1);
+    // Dos búferes en total: el de ruido y el impulso de reverb, ambos
+    // cacheados por contexto. Lo que se comprueba es que el segundo golpe no
+    // añada ninguno más.
+    expect(ctx.buffersCreated).toBe(2);
   });
 
-  it('setMasterVolume actualiza el gain maestro conectado al destino', () => {
+  it('setMasterVolume actualiza el gain maestro', () => {
     const { ctx, engine } = rig();
     engine.trigger('prima', { time: 0 });
 
-    const master = gainNodes(ctx).find((n) => n.connections.includes(ctx.destination));
+    // El nodo conectado al destino es ahora el soft clip, no el gain maestro:
+    // el master es el primero de la cadena, al principio del grafo.
+    const maestro = masterGain(ctx);
     engine.setMasterVolume(0.5);
 
-    expect(master.gain.value).toBe(0.5);
+    expect(maestro.gain.value).toBe(0.5);
     expect(engine.getMasterVolume()).toBe(0.5);
   });
 

@@ -39,25 +39,33 @@ export function createFakeAudioContext({ sampleRate = 48000, currentTime = 0 } =
     }
   });
 
-  const makeNode = (type) => ({
-    type,
-    connections: [],
-    connect(target) {
-      this.connections.push(target);
-      return target;
-    },
-    disconnect(target) {
-      if (target) this.connections = this.connections.filter((c) => c !== target);
-      else this.connections = [];
-    }
-  });
+  const makeNode = (type) => {
+    const node = {
+      type,
+      connections: [],
+      connect(target) {
+        node.connections.push(target);
+        return target;
+      },
+      disconnect(target) {
+        if (target) node.connections = node.connections.filter((c) => c !== target);
+        else node.connections = [];
+      }
+    };
+    return node;
+  };
 
-  return {
+  // Registro del grafo, para poder comprobar el orden de los nodos (que el
+  // soft clip sea el último antes del destino, por ejemplo).
+  const nodos = [];
+
+  const context = {
     sampleRate,
     currentTime,
     state: 'running',
     destination: makeNode('destination'),
     log,
+    nodos,
     get buffersCreated() {
       return buffersCreated;
     },
@@ -65,6 +73,33 @@ export function createFakeAudioContext({ sampleRate = 48000, currentTime = 0 } =
       const node = makeNode('gain');
       node.gain = param(node, 'gain');
       log.push({ node, op: 'createGain' });
+      nodos.push(node);
+      return node;
+    },
+    createDynamicsCompressor() {
+      const node = makeNode('compressor');
+      node.threshold = param(node, 'threshold');
+      node.knee = param(node, 'knee');
+      node.ratio = param(node, 'ratio');
+      node.attack = param(node, 'attack');
+      node.release = param(node, 'release');
+      log.push({ node, op: 'createDynamicsCompressor' });
+      nodos.push(node);
+      return node;
+    },
+    createWaveShaper() {
+      const node = makeNode('waveshaper');
+      node.curve = null;
+      node.oversample = 'none';
+      log.push({ node, op: 'createWaveShaper' });
+      nodos.push(node);
+      return node;
+    },
+    createConvolver() {
+      const node = makeNode('convolver');
+      node.buffer = null;
+      log.push({ node, op: 'createConvolver' });
+      nodos.push(node);
       return node;
     },
     createOscillator() {
@@ -74,6 +109,7 @@ export function createFakeAudioContext({ sampleRate = 48000, currentTime = 0 } =
       node.start = (t) => log.push({ node, op: 'start', t });
       node.stop = (t) => exigirTiempo('stop', t, log.push({ node, op: 'stop', t }));
       log.push({ node, op: 'createOscillator' });
+      nodos.push(node);
       return node;
     },
     createBufferSource() {
@@ -82,6 +118,7 @@ export function createFakeAudioContext({ sampleRate = 48000, currentTime = 0 } =
       node.start = (t, offset = 0) => log.push({ node, op: 'start', t, offset });
       node.stop = (t) => exigirTiempo('stop', t, log.push({ node, op: 'stop', t }));
       log.push({ node, op: 'createBufferSource' });
+      nodos.push(node);
       return node;
     },
     createBiquadFilter() {
@@ -90,12 +127,14 @@ export function createFakeAudioContext({ sampleRate = 48000, currentTime = 0 } =
       node.frequency = param(node, 'frequency');
       node.Q = param(node, 'Q');
       log.push({ node, op: 'createBiquadFilter' });
+      nodos.push(node);
       return node;
     },
     createStereoPanner() {
       const node = makeNode('panner');
       node.pan = param(node, 'pan');
       log.push({ node, op: 'createStereoPanner' });
+      nodos.push(node);
       return node;
     },
     createBuffer(channels, length, rate) {
@@ -109,4 +148,6 @@ export function createFakeAudioContext({ sampleRate = 48000, currentTime = 0 } =
       };
     }
   };
+
+  return context;
 }

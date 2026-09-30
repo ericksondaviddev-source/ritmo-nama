@@ -84,8 +84,9 @@ export function mountVisualizador(root, { engine, getContext, audio: composicion
         <span data-vz-status role="status" aria-live="polite" class="text-xs text-zinc-500"></span>
       </div>
       <p class="mt-2 text-xs text-zinc-600">
-        El MP3 se renderiza al instante aunque la pista sea larga. El vídeo se graba en
-        tiempo real: 5 minutos de vídeo tardan 5 minutos.
+        El MP3 se sintetiza en el móvil, así que tarda del orden de minuto y medio por cada
+        minuto de audio (verás el %). El vídeo se graba en tiempo real: 5 minutos de vídeo
+        tardan 5 minutos.
       </p>
     </div>`;
 
@@ -182,12 +183,25 @@ export function mountVisualizador(root, { engine, getContext, audio: composicion
 
   mp3Btn?.addEventListener('click', async () => {
     mp3Btn.disabled = true;
-    status.textContent = 'Renderizando MP3…';
+    const objetivo = duracionObjetivo();
+    // El render no es instantáneo: va por bloques y tarda del orden de 1,4x la
+    // duración (medido en Chrome con el motor real). Sin esto el botón parece
+    // colgado durante minutos, y en un móvil, mucho más.
+    const inicio = performance.now();
+    status.textContent = `Renderizando MP3… 0 %`;
     try {
       const { blob, buffer } = await exportarMp3(composicion, {
-        ciclos: 16,
+        duracionSeg: objetivo,
         engine,
-        getContext
+        getContext,
+        alProgresar: (f) => {
+          const pct = Math.round(f * 100);
+          const transcurrido = (performance.now() - inicio) / 1000;
+          const restante = f > 0.02 ? Math.round(transcurrido / f - transcurrido) : null;
+          status.textContent =
+            `Renderizando MP3… ${pct} %` +
+            (restante !== null && restante > 1 ? ` · unos ${restante} s más` : '');
+        }
       });
       if (!blob) {
         status.textContent = 'No se pudo generar el audio.';
@@ -195,7 +209,9 @@ export function mountVisualizador(root, { engine, getContext, audio: composicion
       }
       descargar(blob, `ritmo-nama-${composicion.state.patternId ?? 'mi-estudio'}.mp3`);
       const kb = Math.round(blob.size / 1024);
-      status.textContent = `MP3 descargado ✓ (${kb} KB, ${Math.round(buffer.duration)} s)`;
+      const seg = Math.round(buffer.duration);
+      const tope = limiteSel?.value === 'libre' ? ` (tope de ${TOPE_MP3} s en "sin límite")` : '';
+      status.textContent = `MP3 descargado ✓ (${kb} KB, ${seg} s)${tope}`;
     } catch (err) {
       console.error('[visualizador] MP3:', err);
       status.textContent = 'No se pudo generar el MP3 en este navegador.';
@@ -241,6 +257,20 @@ export function mountVisualizador(root, { engine, getContext, audio: composicion
     mp4Btn.disabled = false;
     mp4Btn.textContent = '■ Detener';
   });
+
+  // Techo del MP3 en modo "sin límite": el render es offline y barato, pero
+  // renderizar indefinidamente no termina nunca, así que se corta aquí y se
+  // avisa en el mensaje en vez de dejar al usuario esperando.
+  const TOPE_MP3 = 60;
+
+  /**
+   * El selector manda sobre las dos descargas. El MP3 lo traduce a duración
+   * objetivo (el render es offline, así que no cuesta tiempo real) y el vídeo lo
+   * aplica como corte en tiempo real, que es lo único que un MediaRecorder sabe
+   * hacer.
+   */
+  const duracionObjetivo = () =>
+    limiteSel?.value === 'libre' ? TOPE_MP3 : Number(limiteSel.value);
 
   limiteSel?.addEventListener('change', () => {
     grabador.limiteSeg = limiteSel.value === 'libre' ? LIMITE_ABIERTO : Number(limiteSel.value);

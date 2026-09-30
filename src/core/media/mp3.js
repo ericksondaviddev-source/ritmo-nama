@@ -66,16 +66,27 @@ export async function aMp3(audioBuffer, { bitrate = BITRATE } = {}) {
  * Renderiza la composición y la devuelve como MP3. Es instantáneo aunque la
  * pista sea larga, porque el render es offline.
  */
-export async function exportarMp3(composicion, { ciclos = 8, voz = null, bitrate = BITRATE, engine, getContext } = {}) {
+export async function exportarMp3(
+  composicion,
+  { ciclos = 8, duracionSeg = null, voz = null, bitrate = BITRATE, engine, getContext, alProgresar = null } = {}
+) {
   if (!composicion) return null;
   if (!engine) throw new Error('exportarMp3 necesita el motor de audio: sin él el render sale en silencio.');
+  // El render se lleva casi todo el tiempo (a 300 s son ~7 min contra ~30 s de
+  // codificado), así que el progreso que se ve es el del render: el bucle de
+  // codificación se declara como terminado al empezar.
   const buffer = await renderExport(composicion, {
     ciclos,
+    duracionSeg,
     voiceBuffer: voz,
     muestra: TASA_MUESTRAS,
     engine,
-    getContext
+    getContext,
+    alProgresar: (f) => alProgresar?.(f * 0.9)
   });
   if (!buffer) return null;
-  return { blob: await aMp3(buffer, { bitrate }), buffer };
+  alProgresar?.(0.92);
+  const blob = await aMp3(buffer, { bitrate });
+  alProgresar?.(1);
+  return { blob, buffer };
 }

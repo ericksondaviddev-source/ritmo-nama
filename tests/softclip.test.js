@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { curvaSoftClip } from '../src/core/audio/softclip.js';
+import { createFakeAudioContext } from './fakes/fake-audio-context.js';
+import { createDrumEngine } from '../src/core/audio/drum-engine.js';
 
 describe('soft clip', () => {
   const curva = curvaSoftClip(2049);
@@ -52,6 +54,53 @@ describe('soft clip', () => {
     for (const v of suave) {
       expect(v).toBeLessThanOrEqual(0.5);
       expect(v).toBeGreaterThanOrEqual(-0.5);
+    }
+  });
+});
+
+describe('la reverb no esquiva el tope', () => {
+  // Regresión: la cola de reverb iba en paralelo DIRECTAMENTE al destino,
+  // saltándose el compresor y el soft clip. Se midió un pico de 1,01-1,05 en el
+  // render exportado, o sea muestras ya recortadas. Aquí se comprueba el orden
+  // del grafo del master: todo debe pasar por la curva antes de llegar al
+  // destino, y la reverb debe entrar ANTES del limitador, no después.
+  function construir() {
+    const ctx = createFakeAudioContext();
+    const engine = createDrumEngine(() => ctx);
+    engine.trigger('prima', { time: 0, context: ctx });
+    return ctx;
+  }
+
+  it('sólo un nodo se conecta al destino', () => {
+    const ctx = construir();
+    const alDestino = ctx.nodos.filter((n) => n.connections.includes(ctx.destination));
+    expect(alDestino.length).toBe(1);
+  });
+
+  it('ese nodo final es el soft clip, con curva aplicada', () => {
+    const ctx = construir();
+    const [final] = ctx.nodos.filter((n) => n.connections.includes(ctx.destination));
+    expect(final.type).toBe('waveshaper');
+    expect(final.curve).toBeTruthy();
+    expect(final.curve.length).toBeGreaterThan(1024);
+  });
+
+  it('la reverb se suma antes del limitador, no en paralelo al destino', () => {
+    const ctx = construir();
+    const convolver = ctx.nodos.find((n) => n.type === 'convolver');
+    expect(convolver).toBeTruthy();
+    // Ninguna conexión de la reverb puede saltar al destino: la cola tiene que
+    // pasar por la suma y de ahí al limitador y al soft clip.
+    for (const destino of convolver.connections) {
+      expect(destino.type, 'la reverb salta el limitador').toBe('gain');
+      expect(destino.connections.includes(ctx.destination), 'la reverb llega directa al destino').toBe(false);
+      // Y desde ahí se llega al soft clip en algún punto del camino.
+      const alcanza = (nodo, tipo, Prof = 0) => {
+        if (Prof > 6) return false;
+        if (nodo.type === tipo) return true;
+        return nodo.connections.some((c) => alcanza(c, tipo, Prof + 1));
+      };
+      expect(alcanza(destino, 'waveshaper'), 'la reverb no pasa por el soft clip').toBe(true);
     }
   });
 });

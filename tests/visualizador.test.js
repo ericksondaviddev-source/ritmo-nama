@@ -4,7 +4,7 @@ import { ESTILOS, createVisualizer, estiloPorId } from '../src/core/visualizer/i
 import { createCanvasVisualizer } from '../src/core/visualizer/styles/canvas-2d.js';
 import { createAsciiVisualizer } from '../src/core/visualizer/styles/ascii.js';
 import { createFiestaVisualizer } from '../src/core/visualizer/styles/fiesta.js';
-import { formatoSoportado, MAX_SIN_LIMITE } from '../src/core/media/grabador.js';
+import { createGrabador, formatoSoportado, MAX_SIN_LIMITE } from '../src/core/media/grabador.js';
 import { renderExport } from '../src/core/media/render.js';
 import { DRUMS } from '../src/data/drums.js';
 import { createMidipadAudio } from '../src/core/audio/midipad.js';
@@ -264,6 +264,166 @@ describe('grabador', () => {
 
   it('el límite abierto es infinito de verdad', () => {
     expect(MAX_SIN_LIMITE).toBe(Infinity);
+  });
+
+  it('asignar limiteSeg reprograma el corte, no crea una propiedad muerta', async () => {
+    // Regresión: limiteSeg era un parámetro de cierre, así que
+    // `grabador.limiteSeg = X` sólo creaba una propiedad nueva en el objeto
+    // devuelto y el setTimeout seguía con el valor de partida: elegir "sin
+    // límite" o acortarlo no cambiaba nada.
+    const g = createGrabador({
+      canvas: { captureStream: () => ({ getVideoTracks: () => [], getAudioTracks: () => [] }) },
+      engine: { connectOutput() {} },
+      getContext: () => ({ createMediaStreamDestination: () => ({ stream: { getAudioTracks: () => [] } }) }),
+      limiteSeg: 300
+    });
+    expect(g.limiteSeg).toBe(300);
+    g.limiteSeg = 60;
+    expect(g.limiteSeg).toBe(60);
+    g.limiteSeg = MAX_SIN_LIMITE;
+    expect(g.limiteSeg).toBe(Infinity);
+    g.destroy();
+  });
+});
+
+describe('duración del render', () => {
+  it('pide por duración, y el número de ciclos se deriva del compás', async () => {
+    // A 124 BPM un ciclo de 12 pasos dura ~5,8 s, así que 16 ciclos dan ~93 s:
+    // muy lejos de los 5 minutos que ofrece el selector. Con duracionSeg, el
+    // render tiene que acercarse a lo pedido.
+    const ctx = createFakeAudioContext();
+    const disparados = [];
+    const engine = { trigger: (id, o) => disparados.push({ id, ...o }) };
+    const comp = createMidipadAudio({ engine, getContext: () => ctx });
+    comp.applyPreset('guaira-tradicional');
+
+    const original = globalThis.OfflineAudioContext;
+    globalThis.OfflineAudioContext = class {
+      constructor(canales, len) {
+        this.canales = canales;
+        this.length = len;
+      }
+      createBuffer(canales, len) {
+        const datos = Array.from({ length: canales }, () => new Float32Array(len));
+        return {
+          numberOfChannels: canales,
+          length: len,
+          sampleRate: 44100,
+          duration: len / 44100,
+          getChannelData: (c) => datos[c]
+        };
+      }
+      createBufferSource() {
+        return { connect() {}, start() {} };
+      }
+      startRendering() {
+        return Promise.resolve(this.createBuffer(this.canales, this.length));
+      }
+    };
+    try {
+      const largo = await renderExport(comp, { duracionSeg: 300, engine });
+      const corto = await renderExport(comp, { ciclos: 1, engine });
+      // 300 s pedidos -> entre 300 y 306 s (un ciclo entero de más como mucho).
+      expect(largo.duration).toBeGreaterThanOrEqual(300);
+      expect(largo.duration).toBeLessThan(306);
+      // Un solo ciclo es mucho más corto: la duración manda sobre los ciclos.
+      expect(corto.duration).toBeLessThan(12);
+    } finally {
+      globalThis.OfflineAudioContext = original;
+    }
+  });
+
+  it('una pista larga se parte en bloques y se pega sin huecos ni solapes', async () => {
+    // El render entero en un solo contexto costaba cada vez más (10 s -> 4,7 s
+    // de cálculo, 60 s -> 123,8 s). Ahora va por bloques, y hay que comprobar
+    // que la costura no deja un hueco: el bloque N+1 empieza exactamente donde
+    // acaba el N.
+    const ctx = createFakeAudioContext();
+    const ctxOffline = { createBufferSource: () => ({ connect() {}, start() {} }), destination: {} };
+    const disparados = [];
+    const engine = { trigger: (id, o) => disparados.push({ id, ...o }) };
+    const comp = createMidipadAudio({ engine, getContext: () => ctxOffline });
+    comp.applyPreset('guaira-tradicional');
+
+    const bloques = [];
+    const original = globalThis.OfflineAudioContext;
+    globalThis.OfflineAudioContext = class {
+      constructor(canales, len) {
+        this.canales = canales;
+        this.length = len;
+      }
+      createBuffer(canales, len) {
+        const datos = Array.from({ length: canales }, () => new Float32Array(len));
+        return {
+          numberOfChannels: canales,
+          length: len,
+          sampleRate: 44100,
+          duration: len / 44100,
+          getChannelData: (c) => datos[c]
+        };
+      }
+      createBufferSource() {
+        return { connect() {}, start() {} };
+      }
+      startRendering() {
+        bloques.push(this.length);
+        return Promise.resolve(this.createBuffer(this.canales, this.length));
+      }
+    };
+    try {
+      const buf = await renderExport(comp, { duracionSeg: 120, engine });
+      // 120 s a bloques de 20 -> seis contextos, no uno gigante.
+      expect(bloques.length).toBeGreaterThan(3);
+      // Ningún bloque supera el tamaño previsto: es lo que acota el coste.
+      for (const len of bloques) expect(len).toBeLessThan(25 * 44100);
+      // La salida tiene la duración pedida.
+      expect(buf.duration).toBeGreaterThanOrEqual(120);
+      expect(buf.duration).toBeLessThan(126);
+    } finally {
+      globalThis.OfflineAudioContext = original;
+    }
+  });
+
+  it('cada bloque pide sólo los golpes que le tocan, con el tiempo en local', async () => {
+    // Si un bloque agendara golpes de otro, el audio saldría duplicado; y si
+    // escribiera el tiempo global en un contexto que arranca en su 0, todos los
+    // golpes caerían fuera y el bloque saldría en silencio.
+    const ctx = createFakeAudioContext();
+    const ctxOffline = { createBufferSource: () => ({ connect() {}, start() {} }), destination: {} };
+    const disparados = [];
+    const engine = { trigger: (id, o) => disparados.push({ id, ...o }) };
+    const comp = createMidipadAudio({ engine, getContext: () => ctxOffline });
+    comp.applyPreset('guaira-tradicional');
+
+    const original = globalThis.OfflineAudioContext;
+    globalThis.OfflineAudioContext = class {
+      constructor(canales, len) {
+        this.canales = canales;
+        this.length = len;
+      }
+      createBuffer(canales, len) {
+        const datos = Array.from({ length: canales }, () => new Float32Array(len));
+        return { numberOfChannels: canales, length: len, sampleRate: 44100, duration: len / 44100, getChannelData: (c) => datos[c] };
+      }
+      createBufferSource() {
+        return { connect() {}, start() {} };
+      }
+      startRendering() {
+        return Promise.resolve(this.createBuffer(this.canales, this.length));
+      }
+    };
+    try {
+      await renderExport(comp, { duracionSeg: 120, engine });
+      // Todos los tiempos caben en su bloque: ninguno se sale por arriba.
+      for (const d of disparados) {
+        expect(d.time, 'golpe fuera de su bloque').toBeGreaterThanOrEqual(0);
+        expect(d.time, 'golpe con tiempo global en vez de local').toBeLessThan(25);
+      }
+      // Y hay golpes de sobra, no un bloque mudo.
+      expect(disparados.length).toBeGreaterThan(100);
+    } finally {
+      globalThis.OfflineAudioContext = original;
+    }
   });
 });
 

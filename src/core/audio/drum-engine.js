@@ -12,22 +12,39 @@ export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel 
       master = ctx.createGain();
       master.gain.value = volume;
 
-      // Limitador antes del destino: cuatro tambores a la vez con sus capas
-      // superuestas llegaban a 1.10 y recortaban. Comprime sólo el exceso.
       let node = master;
-      if (typeof ctx.createDynamicsCompressor === 'function') {
-        const limiter = ctx.createDynamicsCompressor();
-        limiter.threshold.value = -6;
-        limiter.knee.value = 3;
-        limiter.ratio.value = 12;
-        limiter.attack.value = 0.003;
-        limiter.release.value = 0.18;
-        node.connect(limiter);
-        node = limiter;
+
+      // Seco y húmedo se suman ANTES de limitar. Antes el seco pasaba por el
+      // compresor y el soft clip, pero la cola de reverb iba en paralelo
+      // directamente al destino: se escapaba del tope y el render medido
+      // llegaba a 1,01-1,05, es decir, con muestras ya recortadas.
+      if (typeof ctx.createConvolver === 'function') {
+        const convolver = ctx.createConvolver();
+        convolver.buffer = getReverbImpulse(ctx);
+        const wet = ctx.createGain();
+        wet.gain.value = reverbLevel;
+        const suma = ctx.createGain();
+        node.connect(suma);
+        node.connect(convolver);
+        convolver.connect(wet);
+        wet.connect(suma);
+        node = suma;
       }
 
-      // Y después el soft clip: el compresor va "en la media" y en un acento
-      // fuerte se pasaba (se midió 1,44). La curva garantiza el tope.
+      // Y después el compresor y el soft clip, ya con la reverb dentro.
+      if (typeof ctx.createDynamicsCompressor === 'function') {
+        const limitador = ctx.createDynamicsCompressor();
+        limitador.threshold.value = -6;
+        limitador.knee.value = 3;
+        limitador.ratio.value = 12;
+        limitador.attack.value = 0.003;
+        limitador.release.value = 0.18;
+        node.connect(limitador);
+        node = limitador;
+      }
+
+      // El soft clip va el último y es la garantía dura: con la curva por
+      // encima, la salida no pasa de 1 aunque todo lo demás se pase.
       if (typeof ctx.createWaveShaper === 'function') {
         const shaper = ctx.createWaveShaper();
         shaper.curve = curvaSoftClip();
@@ -36,19 +53,7 @@ export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel 
         node = shaper;
       }
 
-      // Seco al destino + húmedo por convolución (impulso procedural)
-      if (typeof ctx.createConvolver === 'function') {
-        const convolver = ctx.createConvolver();
-        convolver.buffer = getReverbImpulse(ctx);
-        const wet = ctx.createGain();
-        wet.gain.value = reverbLevel;
-        node.connect(ctx.destination);
-        node.connect(convolver);
-        convolver.connect(wet);
-        wet.connect(ctx.destination);
-      } else {
-        node.connect(ctx.destination);
-      }
+      node.connect(ctx.destination);
       masterContext = ctx;
     }
     return master;

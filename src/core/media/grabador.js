@@ -39,13 +39,14 @@ export const puedeGrabar = () =>
  * @param {Function} opciones.getContext
  * @param {number}  opciones.limiteSeg  300 para 5 min, MAX_SIN_LIMITE
  */
-export function createGrabador({ canvas, engine, getContext, limiteSeg = 300, alCambiarEstado = null } = {}) {
+export function createGrabador({ canvas, engine, getContext, limiteSeg: limiteInicial = 300, alCambiarEstado = null } = {}) {
   let grabador = null;
   let destinoAudio = null;
   let flujoVideo = null;
   let trozos = [];
   let cronometro = null;
   let limite = null;
+  let limiteSeg = limiteInicial;
   let grabando = false;
   let inicioMs = 0;
   let lienzo = canvas;
@@ -105,11 +106,24 @@ export function createGrabador({ canvas, engine, getContext, limiteSeg = 300, al
       estado(`Grabando… ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
     }, 250);
 
-    if (Number.isFinite(limiteSeg)) {
-      limite = setTimeout(() => detener(), limiteSeg * 1000);
-    }
+    programarLimite();
 
     return { ok: true, formato: formato.etiqueta };
+  }
+
+  /**
+   * Rearma el corte automático. Se recalcula desde el tiempo ya grabado, para
+   * que cambiar el selector a mitad de una toma no le regale ni le quite
+   * segundos: el plazo siempre se mide sobre el inicio real.
+   */
+  function programarLimite() {
+    if (limite !== null) clearTimeout(limite);
+    limite = null;
+    if (!Number.isFinite(limiteSeg)) return;
+    const transcurrido = grabando ? (performance.now() - inicioMs) / 1000 : 0;
+    const restante = limiteSeg - transcurrido;
+    // Si ya se pasó el límite, se corta de inmediato en vez de esperar en balde.
+    limite = setTimeout(() => detener(), Math.max(0, restante) * 1000);
   }
 
   function detener() {
@@ -139,6 +153,20 @@ export function createGrabador({ canvas, engine, getContext, limiteSeg = 300, al
      */
     setLienzo(nuevo) {
       lienzo = nuevo;
+    },
+    /**
+     * El límite se mide en tiempo real, no de render. Antes este valor era un
+     * parámetro de cierre: asignarlo desde fuera creaba una propiedad nueva en
+     * el objeto devuelto y el `setTimeout` seguía con el valor viejo, así que
+     * elegir "sin límite" no alargaba nada. Aquí sí reprograma el corte, incluso
+     * con la grabación ya en curso.
+     */
+    set limiteSeg(valor) {
+      limiteSeg = valor;
+      if (grabando) programarLimite();
+    },
+    get limiteSeg() {
+      return limiteSeg;
     },
     get grabando() {
       return grabando;
