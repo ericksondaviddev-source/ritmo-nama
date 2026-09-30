@@ -17,6 +17,7 @@
     "tts:course": "node scripts/tts-course.mjs"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "three": "^0.186.1"
   },
   "devDependencies": {

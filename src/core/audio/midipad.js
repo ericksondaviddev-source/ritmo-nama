@@ -22,10 +22,14 @@ export function createMidipadAudio({ engine, getContext } = {}) {
     mixer: defaultMixer(),
     articulation: defaultArticulations(),
     patternId: null,
+    reproduciendo: false,
     master: 0.85
   };
   let scheduler = null;
   const listeners = new Set();
+  // Vistas que siguen el ritmo: el visualizador se dibuja con estos eventos, así
+  // que lo que se ve y lo que se oyen salen del mismo reloj.
+  const oyentesDePaso = new Set();
 
   function emit() {
     for (const fn of listeners) fn(state);
@@ -34,6 +38,16 @@ export function createMidipadAudio({ engine, getContext } = {}) {
   function subscribe(fn) {
     listeners.add(fn);
     return () => listeners.delete(fn);
+  }
+
+  /** Se llama en cada paso, con el instante de audio ya fijado. */
+  function onStepDelRitmo(step, time, golpeados) {
+    for (const fn of oyentesDePaso) fn(step, time, golpeados);
+  }
+
+  function alTocarElRitmo(fn) {
+    oyentesDePaso.add(fn);
+    return () => oyentesDePaso.delete(fn);
   }
 
   function toggleCell(drumId, stepIndex) {
@@ -109,19 +123,33 @@ export function createMidipadAudio({ engine, getContext } = {}) {
       swing: state.swing,
       ...(getContext ? { getContext } : {}),
       onStep(step, time) {
+        const golpeados = [];
         for (const id of STEM_IDS) {
           const cell = state.steps[id][step];
-          if (cell > 0) playHit(id, time, cell);
+          if (cell > 0) {
+            playHit(id, time, cell);
+            golpeados.push({ id, acento: cell === 2 });
+          }
         }
+        onStepDelRitmo(step, time, golpeados);
       }
     });
     scheduler.start();
+    // `reproduciendo` es la señal de que hay ritmo corriendo: la usan el
+    // visualizador y la grabación para seguir al transporte sin parchear
+    // métodos desde fuera.
+    state.reproduciendo = true;
+    emit();
     return scheduler;
   }
 
   function stop() {
     scheduler?.stop();
     scheduler = null;
+    if (state.reproduciendo) {
+      state.reproduciendo = false;
+      emit();
+    }
   }
 
   function warmUp() {
@@ -213,6 +241,7 @@ export function createMidipadAudio({ engine, getContext } = {}) {
   return {
     state,
     subscribe,
+    alTocarElRitmo,
     snapshot,
     toggleCell,
     applyPreset,

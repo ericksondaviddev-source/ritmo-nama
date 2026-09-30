@@ -1,7 +1,8 @@
-﻿import { ARTICULATIONS, DRUMS } from '../data/drums.js';
+import { ARTICULATIONS, DRUMS } from '../data/drums.js';
 import { PATTERNS } from '../data/patterns.js';
 import { createMidipadAudio } from '../core/audio/midipad.js';
 import { reclamarConAviso } from '../core/audio/transport.js';
+import { mountVisualizador } from './visualizador.js';
 
 const RECORD_MAX_MS = 60000;
 
@@ -93,12 +94,12 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
         <div class="mt-6 flex flex-wrap items-center gap-3 border-t border-zinc-800 pt-4">
           <button type="button" data-record-loop class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-300 transition-colors hover:bg-red-500/20">⏺ Grabar loop (60 s)</button>
           <button type="button" data-record-voice class="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-bold text-zinc-300 transition-colors hover:bg-zinc-700">🎤 Grabar voz</button>
-          <button type="button" data-export-wav class="rounded-xl bg-zinc-800 px-4 py-2.5 text-sm font-bold text-amber-300 transition-colors hover:bg-zinc-700">⭳ Exportar WAV</button>
           <span data-padstatus role="status" aria-live="polite" class="text-xs text-zinc-500"></span>
         </div>
         <p data-padaviso class="mt-2 hidden text-xs text-amber-500/90"></p>
         <audio data-loopplayback controls class="mt-3 hidden w-full"></audio>
       </div>
+      <div data-visualizador></div>
     </div>`;
 
   // Grid: 6 stems × 12 celdas
@@ -313,7 +314,6 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
   const playback = root.querySelector('[data-loopplayback]');
   const recordLoopBtn = root.querySelector('[data-record-loop]');
   const recordVoiceBtn = root.querySelector('[data-record-voice]');
-  const exportBtn = root.querySelector('[data-export-wav]');
   const ctx = getContext?.();
   const canRecord =
     typeof window.MediaRecorder !== 'undefined' &&
@@ -409,25 +409,8 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
     }, RECORD_MAX_MS);
   });
 
-  exportBtn.addEventListener('click', async () => {
-    exportBtn.disabled = true;
-    status.textContent = 'Renderizando WAV…';
-    const wav = await audio.renderExport({ cycles: 2, voiceBuffer });
-    exportBtn.disabled = false;
-    status.textContent = '';
-    if (wav) {
-      const blob = new Blob([wav], { type: 'audio/wav' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'ritmo-nama-midipad.wav';
-      a.click();
-      URL.revokeObjectURL(url);
-      status.textContent = 'WAV descargado ✓';
-    } else {
-      status.textContent = 'No se pudo exportar';
-    }
-  });
+  // El export en WAV se sustituyó por MP3 y MP4, que viven en el visualizador
+  // (src/components/visualizador.js) porque van con el vídeo.
 
   // Pre-warm al primer gesto en la página (spec §8)
   const warm = () => {
@@ -440,10 +423,20 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
   audio.applyPreset(presets[0].id);
   refreshGrid();
 
+  // El visualizador vive dentro de esta misma sección: comparte la composición,
+  // así que no hay dos estudios distintos que aprender.
+  const visualizador = mountVisualizador(root.querySelector('[data-visualizador]'), {
+    engine,
+    getContext,
+    audio
+  });
+
   return {
+    visualizador,
     destroy() {
       unsubscribe?.();
       transporte.release();
+      visualizador?.destroy();
       audio.stop();
       if (loopRecorder && loopRecorder.state !== 'inactive') loopRecorder.stop();
       if (voiceRecorderActive && voiceRecorderActive.state !== 'inactive') voiceRecorderActive.stop();

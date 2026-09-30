@@ -48,6 +48,7 @@ const RATIO = Number(argOf('--ratio', 0.15));
 const ONLY = argOf('--only', null);
 
 const mb = (n) => `${(n / 1048576).toFixed(1)} MB`;
+const kb = (n) => `${Math.round(n / 1024)} KB`;
 
 /* ------------------------------------------------------------------ *
  * Cadena de optimización (weld -> simplify -> optimize)
@@ -85,11 +86,31 @@ function optimize(scan) {
   }
   gltfTransform(['optimize', siguiente, final, '--compress', 'draco', '--texture-compress', 'webp']);
 
+  // Copia ultraligera para el visualizador 3D del estudio: aquí los tambores
+  // sólo se ven de lejos y rebotan, así que bastan 512 px de textura y la
+  // malla muy simplificada. Sin esto, elegir el estilo 3D costaría 6 MB.
+  const vizDir = join(DEST, scan.name, 'visualizador');
+  mkdirSync(vizDir, { recursive: true });
+  const vizFinal = join(vizDir, 'modelo.glb');
+  const vizWeld = join(OUT, `${scan.name}.viz.weld.glb`);
+  const vizSimp = join(OUT, `${scan.name}.viz.simp.glb`);
+  gltfTransform(['weld', final, vizWeld]);
+  gltfTransform(['simplify', vizWeld, vizSimp, '--ratio', '0.08', '--error', '0.004']);
+  gltfTransform([
+    'optimize', vizSimp, vizFinal,
+    '--compress', 'draco',
+    '--texture-compress', 'webp',
+    '--texture-size', '512'
+  ]);
+  for (const tmp of [vizWeld, vizSimp]) rmSync(tmp, { force: true });
+  const vizBytes = statSync(vizFinal).size;
+
   for (const tmp of [weld, simp]) rmSync(tmp, { force: true });
   const after = statSync(final).size;
   console.log(
     `  ${scan.name.padEnd(13)} ${mb(before)} -> ${mb(after)}  ` +
-      `(${((100 * after) / before).toFixed(1)}% del original, 1/${(before / after).toFixed(0)})`
+      `(${((100 * after) / before).toFixed(1)}%, 1/${(before / after).toFixed(0)})` +
+      `   visualizador: ${kb(vizBytes)}`
   );
   return after;
 }

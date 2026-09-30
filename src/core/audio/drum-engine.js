@@ -1,5 +1,6 @@
 import { getNoiseBuffer, getReverbImpulse, noiseOffset } from './noise.js';
 import { voiceSpec } from './voices.js';
+import { curvaSoftClip } from './softclip.js';
 
 export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel = 0.14 } = {}) {
   let master = null;
@@ -23,6 +24,16 @@ export function createDrumEngine(getContext, { masterVolume = 0.85, reverbLevel 
         limiter.release.value = 0.18;
         node.connect(limiter);
         node = limiter;
+      }
+
+      // Y después el soft clip: el compresor va "en la media" y en un acento
+      // fuerte se pasaba (se midió 1,44). La curva garantiza el tope.
+      if (typeof ctx.createWaveShaper === 'function') {
+        const shaper = ctx.createWaveShaper();
+        shaper.curve = curvaSoftClip();
+        shaper.oversample = '4x';
+        node.connect(shaper);
+        node = shaper;
       }
 
       // Seco al destino + húmedo por convolución (impulso procedural)

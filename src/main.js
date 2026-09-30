@@ -3,7 +3,6 @@ import { mountHeader } from './components/header.js';
 import { mountHero } from './components/hero.js';
 import { mountCourse } from './components/course.js';
 import { mountMidipad } from './components/midipad.js';
-import { mountVideoExport } from './components/video-export.js';
 import { mountFaq } from './components/seo.js';
 import { mountContact } from './components/contact.js';
 import { createDrumEngine } from './core/audio/drum-engine.js';
@@ -23,7 +22,6 @@ mountHeader(document.getElementById('site-header'));
 mountHero(document.getElementById('hero'), { engine });
 mountCourse(document.getElementById('minicurso'), { engine });
 mountMidipad(document.getElementById('midipad'), { engine, getContext: getAudioContext, audio: composition });
-mountVideoExport(document.getElementById('videoexport'), { engine, getContext: getAudioContext, audio: composition });
 mountContact(document.getElementById('contacto'));
 // FAQ visible + datos estructurados: el texto que ve el visitante es el mismo
 // que declara el FAQPage, que es lo que Google exige.
