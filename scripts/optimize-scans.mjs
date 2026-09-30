@@ -31,8 +31,7 @@ const DEST = resolve('public/assets/drums');
  */
 const SCANS = [
   { dir: NUEVA_CARPETA, file: 'azul con rayas.glb', name: 'AzulRayas', ratio: 0.15 },
-  { dir: NUEVA_CARPETA, file: 'gris plateado.glb', name: 'GrisPlateado', ratio: 0.15 },
-  { dir: NUEVA_CARPETA, file: 'madera clara.glb', name: 'MaderaClara', ratio: 0.15 },
+{ dir: NUEVA_CARPETA, file: 'madera clara.glb', name: 'MaderaClara', ratio: 0.15 },
   { dir: NUEVA_CARPETA, file: 'madera oscura.glb', name: 'MaderaOscura', ratio: 0.15 },
   { dir: NUEVA_CARPETA, file: 'rayas.glb', name: 'Rayas', ratio: 0.15 },
   { dir: NUEVA_CARPETA, file: 'rojo con kit.glb', name: 'RojoConKit', ratio: 0.15 },

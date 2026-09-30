@@ -4,6 +4,7 @@ import { ESTILOS, createVisualizer, estiloPorId } from '../src/core/visualizer/i
 import { createCanvasVisualizer } from '../src/core/visualizer/styles/canvas-2d.js';
 import { createAsciiVisualizer } from '../src/core/visualizer/styles/ascii.js';
 import { createFiestaVisualizer } from '../src/core/visualizer/styles/fiesta.js';
+import { MODELOS_VISUALIZADOR } from '../src/core/visualizer/styles/drums-3d.js';
 import { createGrabador, formatoSoportado, MAX_SIN_LIMITE } from '../src/core/media/grabador.js';
 import { renderExport } from '../src/core/media/render.js';
 import { DRUMS } from '../src/data/drums.js';
@@ -431,10 +432,34 @@ describe('modelos del visualizador 3D', () => {
   it('cada tambor tiene su copia ultraligera, y pesa poco', () => {
     const { statSync } = require('node:fs');
     for (const d of DRUMS) {
-      const carpeta = { prima: 'AzulRayas', cruzao: 'GrisPlateado', pujao: 'MaderaOscura', paila: 'MaderaClara' }[d.id];
+      const carpeta = MODELOS_VISUALIZADOR[d.id];
+      expect(carpeta, `${d.id} sin modelo asignado`).toBeTruthy();
       const p = path.join(ROOT, 'public', 'assets', 'drums', carpeta, 'visualizador', 'modelo.glb');
-      expect(existsSync(p), `${d.id} sin copia de visualizador`).toBe(true);
+      expect(existsSync(p), `${d.id} sin copia de visualizador (${carpeta})`).toBe(true);
       expect(statSync(p).size, d.id).toBeLessThan(400 * 1024);
     }
+  });
+
+  it('ningún modelo apunta a un tambor retirado del catálogo', async () => {
+    // Regresión: el cruzao usaba el gris plateado, que se retiró del catálogo.
+    // Al borrar su carpeta, el visualizador 3D del Midipad dejó de funcionar y
+    // el fallo sólo aparecía en el navegador, en el estilo 3D.
+    const { PRODUCTS } = await import('../src/data/catalog.js');
+    const carpetasVivas = new Set(
+      PRODUCTS.filter((p) => !p.isCta && p.modelo).map((p) => p.modelo.split('/')[3])
+    );
+    for (const [slot, carpeta] of Object.entries(MODELOS_VISUALIZADOR)) {
+      expect(carpetasVivas.has(carpeta), `el ${slot} usa ${carpeta}, que no está en el catálogo`).toBe(true);
+      expect(
+        existsSync(path.join(ROOT, 'public', 'assets', 'drums', carpeta)),
+        `la carpeta ${carpeta} no existe`
+      ).toBe(true);
+    }
+  });
+
+  it('los cuatro tambores del visualizador se distinguen entre sí', () => {
+    // Si dos slots apuntan al mismo modelo, el niño no puede ver quién suena.
+    const carpetas = Object.values(MODELOS_VISUALIZADOR);
+    expect(new Set(carpetas).size).toBe(carpetas.length);
   });
 });

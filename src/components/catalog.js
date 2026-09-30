@@ -74,6 +74,7 @@ function cardMarkup(product) {
             ? `<video
           data-reel
           src="${product.video}"
+          ${product.poster ? `poster="${product.poster}"` : ''}
           muted
           loop
           playsinline
@@ -167,6 +168,7 @@ function tallerMarkup() {
     <figure class="overflow-hidden rounded-3xl glass">
       <video
         src="${v.src}"
+        ${v.poster ? `poster="${v.poster}"` : ''}
         loop
         playsinline
         preload="none"
@@ -199,6 +201,13 @@ export const __catalogMarkup = () =>
   acabadoMarkup(PRODUCTO_POR_DEFECTO) +
   tallerMarkup() +
   pendientesMarkup();
+
+/**
+ * El marcador de foto pendiente, por separado. Ya no ningún producto lo necesita
+ * en el catálogo, pero sigue siendo la red de seguridad cuando una imagen falla
+ * al cargar, así que se expone para poder seguir probándolo.
+ */
+export const __sinFotoMarkup = () => sinFoto();
 
 export function mountCatalog(root) {
   if (!root) return null;

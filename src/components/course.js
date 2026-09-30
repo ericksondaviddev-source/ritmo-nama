@@ -97,18 +97,18 @@ export function mountCourse(root, { engine } = {}) {
     const prev = root.querySelector(`[data-course-play="${activeInstrument}"]`);
     if (prev) prev.setAttribute('aria-pressed', 'false');
     activeInstrument = null;
+    // La narración también se para. Antes esta función estaba duplicada y la
+    // segunda pisaba a la primera, así que al detener un loop la voz seguía
+    // sonando encima: dos audios a la vez y un botón que mintió.
     for (const mod of COURSE) {
       const audio = narrations[mod.instrument];
-      if (audio && !audio.paused) { audio.pause(); audio.currentTime = 0; }
+      if (audio && !audio.paused) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+      const btn = root.querySelector(`[data-course-narration="${mod.instrument}"]`);
+      if (btn) btn.setAttribute('aria-pressed', 'false');
     }
-  }
-
-  function stopActive() {
-    active?.stop();
-    active = null;
-    const prev = root.querySelector(`[data-course-play="${activeInstrument}"]`);
-    if (prev) prev.setAttribute('aria-pressed', 'false');
-    activeInstrument = null;
   }
 
   // Un solo loop sonando: si arranca el Midipad o una grabación, éste se para.

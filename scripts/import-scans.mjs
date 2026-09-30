@@ -20,11 +20,14 @@ import { Document, NodeIO } from '@gltf-transform/core';
 const SRC = resolve('assets drums/Nueva carpeta');
 const OUT = resolve('node_modules/.cache/scans');
 
-/** Los tres escaneos del taller. El nombre de salida es estable y legible. */
+/**
+ * Escaneos del taller. El nombre de salida es estable y legible.
+ *
+ * El gris plateado y el negro con chispas salieron del catálogo, así que ya no se
+ * importan: si vuelven a entrar, el catálogo los quitará en el siguiente paso.
+ */
 const SCANS = [
-  { dir: 'azul con rayas 2', name: 'EscaneoAzul' },
-  { dir: 'gris-plateado', name: 'EscaneoGris' },
-  { dir: 'negro con chispas', name: 'EscaneoNegro' }
+  { dir: 'azul con rayas 2', name: 'EscaneoAzul' }
 ];
 
 const argv = process.argv.slice(2);

@@ -32,14 +32,13 @@ const TAMBORES = [
   {
     carpeta: 'Tricolor',
     foto: join(VISUAL, 'drumskidmulticolor.jpg'),
-    video: join(VISUAL, 'Drumkidmulticolor3D.mp4')
+    video: join(NUEVA, 'diseño tricolor.mp4')
   },
   {
     carpeta: 'AzulRayas',
     foto: join(NUEVA, 'azul con rayas 2.jpg'),
-    video: null
+    video: join(NUEVA, 'azul con rayas.mp4')
   },
-  { carpeta: 'GrisPlateado', foto: join(NUEVA, 'gris-plateado.jpg'), video: null },
   { carpeta: 'MaderaClara', foto: join(NUEVA, 'madera clara.jpg'), video: join(NUEVA, 'madera clara.mp4') },
   {
     carpeta: 'MaderaOscura',
@@ -47,11 +46,12 @@ const TAMBORES = [
     foto: join(NUEVA, 'madura oscura.jpg'),
     video: join(NUEVA, 'madera oscura.mp4')
   },
-  { carpeta: 'Rayas', foto: join(NUEVA, 'rayas.jpg'), video: null },
-  { carpeta: 'RojoConKit', foto: null, video: null },
+  { carpeta: 'Rayas', foto: join(NUEVA, 'rayas.jpg'), video: join(NUEVA, 'rayas.mp4') },
   {
-    // El kit no tiene escaneo 3D: es el conjunto de tambor + baqueta + forro.
-    carpeta: 'KitClasico',
+    // El Tambor Rojo con Kit se fusionó con el Kit Clásico: el 3D es el escaneo
+    // del tambor rojo y la foto y el vídeo son los del conjunto con baqueta y
+    // forro. Antes eran dos carpetas y dos fichas, cada una con la mitad.
+    carpeta: 'RojoConKit',
     foto: join(NUEVA, 'kit-clasico. tambor-baqueta-forro.jpg'),
     // El nombre lleva una 'ñ', que no sobrevive a ir escrito a mano en el código.
     // El primero es el del kit; los otros dos son variantes numeradas.
@@ -106,6 +106,32 @@ function video(destino, origen) {
   return destino;
 }
 
+/**
+ * Póster: un fotograma del propio vídeo.
+ *
+ * Sin él, una tarjeta con `preload="none"` no muestra nada hasta que se pasa el
+ * dedo, y en la sección del taller es un rectángulo negro. Se extrae del archivo
+ * ya transcodado, no del original: así el póster y el vídeo siempre coinciden.
+ */
+function poster(destino, video_) {
+  if (!video_ || !existsSync(video_)) return null;
+  const dur = Number(execFileSync('ffprobe', ['-v', 'quiet', '-show_entries', 'format=duration', '-of', 'csv=p=0', video_], { encoding: 'utf8' }).trim());
+  // A los 2 s, o antes si el clip es corto: donde ya se ve el tambor y no el
+  // plano inicial en negro.
+  const ss = Math.min(2, Math.max(0.5, dur / 3));
+  execFileSync(
+    'ffmpeg',
+    [
+      '-y', '-loglevel', 'error', '-ss', String(ss), '-i', video_,
+      '-frames:v', '1', '-vf', "scale='min(900,iw)':-2",
+      '-c:v', 'libwebp', '-quality', '72', destino
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  console.log(`    poster ${kb(statSync(destino).size)}  (fotograma a ${ss.toFixed(1)} s)`);
+  return destino;
+}
+
 const informe = [];
 for (const t of TAMBORES) {
   const dir = join(DEST, t.carpeta);
@@ -117,12 +143,14 @@ for (const t of TAMBORES) {
   if (tieneModelo) console.log(`    modelo ${kb(statSync(modelo).size)}`);
 
   await foto(join(dir, 'foto.webp'), t.foto);
-  video(join(dir, 'video.mp4'), t.video);
+  const rutaVideo = video(join(dir, 'video.mp4'), t.video);
+  poster(join(dir, 'video.webp'), rutaVideo);
 
   const completa = {
     modelo: tieneModelo,
     foto: existsSync(join(dir, 'foto.webp')),
-    video: existsSync(join(dir, 'video.mp4'))
+    video: existsSync(join(dir, 'video.mp4')),
+    poster: existsSync(join(dir, 'video.webp'))
   };
   informe.push({ tambor: t.carpeta, ...completa, falta: Object.entries(completa).filter(([, v]) => !v).map(([k]) => k) });
 }

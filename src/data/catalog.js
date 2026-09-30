@@ -16,13 +16,21 @@
  * llegado del taller, va a null y la tarjeta lo dice con su marcador, en vez de
  * apuntar a un archivo roto. El test `catalog.test.js` falla si aquí se declara
  * algo que no esté en disco, así que la lista no puede desincronizarse.
+ *
+ * También exige lo contrario: todos los medios de un producto salen de la misma
+ * carpeta. Se rompió una vez al fusionar el Kit Clásico con el Tambor Rojo, que
+ * dejaron repartidos entre dos carpetas.
  */
 const D = (carpeta, hay) => {
   const base = `/assets/drums/${carpeta}`;
   return {
     modelo: hay.modelo ? `${base}/modelo.glb` : null,
     foto: hay.foto ? `${base}/foto.webp` : null,
-    video: hay.video ? `${base}/video.mp4` : null
+    video: hay.video ? `${base}/video.mp4` : null,
+    // Póster del vídeo: un fotograma a los 2 s. Sin él, una tarjeta con vídeo
+    // muestra la foto y un vídeo del taller muestra un rectángulo negro hasta
+    // que se pulsa reproducir.
+    poster: hay.video ? `${base}/video.webp` : null
   };
 };
 
@@ -50,15 +58,7 @@ export const PRODUCTS = [
     name: 'Tambor Azul Rayas',
     tagline: 'Cilindro turquesa con galones negros y cuerda',
     precio: '49 $',
-    ...D('AzulRayas', { modelo: true, foto: true }),
-    personalizable: true
-  },
-  {
-    id: 'gris-plateado',
-    name: 'Tambor Gris Plateado',
-    tagline: 'Cuerpo oscuro con parche rojo y cuerda blanca',
-    precio: '49 $',
-    ...D('GrisPlateado', { modelo: true, foto: true }),
+    ...D('AzulRayas', { modelo: true, foto: true, video: true }),
     personalizable: true
   },
   {
@@ -82,26 +82,19 @@ export const PRODUCTS = [
     name: 'Tambor Rayas',
     tagline: 'Rayas verticales, pintado a mano',
     precio: '49 $',
-    ...D('Rayas', { modelo: true, foto: true }),
+    ...D('Rayas', { modelo: true, foto: true, video: true }),
     personalizable: true
   },
   {
+    // El 3D venía del Tambor Rojo y la foto y el vídeo del Kit Clásico: eran el
+    // mismo producto en dos fichas, una con modelo y sin material del taller y
+    // otra al revés. Fusionadas en una, la ficha tiene las tres cosas.
     id: 'rojo-con-kit',
     name: 'Tambor Rojo con Kit',
-    tagline: 'Cuerpo rojo con baqueta y forro de obsequio',
-    precio: '49 $',
-    ...D('RojoConKit', { modelo: true }),
-    personalizable: true
-  },
-  {
-    id: 'kit-clasico',
-    name: 'Kit Clásico',
     tagline: 'Tambor, baqueta y forro de obsequio',
     precio: '49 $',
-    modelo: null,
-    foto: '/assets/drums/KitClasico/foto.webp',
-    video: '/assets/drums/KitClasico/video.mp4',
-    personalizable: false
+    ...D('RojoConKit', { modelo: true, foto: true, video: true }),
+    personalizable: true
   },
   {
     id: 'personaliza',
@@ -148,23 +141,43 @@ export const MEDIOS_PENDIENTES = reales()
   .filter(Boolean);
 
 /**
- * Vídeos de taller. El de la plaza vive ahora en el hero como fondo, así que
- * aquí sólo queda material del taller a la espera de los nuevos clips.
+ * Vídeos del taller.
+ *
+ * Todos llevan `poster`: sin él, la sección es una rejilla de rectángulos negros
+ * porque van con `preload="none"`, que es justo lo que parece que no ha cargado.
+ *
+ * No se incluyen aquí los clips de los tambores: esos salen en su propia tarjeta
+ * del catálogo, donde sí se ven al pasar el dedo o el ratón.
  */
+const V = (id, archivo, titulo, texto, vertical) => ({
+  id,
+  src: `/assets/video/${archivo}.mp4`,
+  poster: `/assets/video/${archivo}.webp`,
+  titulo,
+  texto,
+  vertical
+});
+
 export const VIDEOS_TALLER = [
-  { id: 'paseo', src: '/assets/video/paseo-taller.mp4', titulo: 'Paseo por el taller', texto: 'Del vaso al parche, paso a paso.', vertical: true },
-  { id: 'recorrido', src: '/assets/video/recorrido-taller.mp4', titulo: 'Recorrido por el taller', texto: 'Cómo nace un tambor, de principio a fin.', vertical: false },
-  // El primero de los tres "kit ... varios diseños" es el del Kit Clásico, y
-  // vive en su carpeta; los otros dos son variantes del mismo kit.
-  { id: 'kit-1', src: '/assets/video/kit-disenos-1.mp4', titulo: 'El kit en varios diseños', texto: 'Tambor, baqueta y forro en cada acabado.', vertical: true },
-  { id: 'kit-2', src: '/assets/video/kit-disenos-2.mp4', titulo: 'Distintos acabados', texto: 'El mismo kit, pintado de otra manera.', vertical: true }
+  // Horizontales arriba, a dos columnas.
+  V('recorrido', 'recorrido-taller', 'Recorrido por el taller', 'Cómo nace un tambor, de principio a fin.', false),
+  V('en-la-plaza', 'en-la-plaza', 'En la plaza, en familia', 'La fulia sonando donde se arma el velorio.', false),
+  V('madera-clara', 'madera-clara', 'Madera clara', 'La madera tal cual, sin pintar.', false),
+  V('madera-oscura', 'madera-oscura', 'Madera oscura', 'El mismo tono de madera, más profundo.', false),
+  // Verticales, a tres columnas.
+  V('paseo', 'paseo-taller', 'Paseo por el taller', 'Del vaso al parche, paso a paso.', true),
+  V('diseno-azul', 'diseno-azul', 'Diseño Azul', 'Un tambor pintado a mano en turquesa.', true),
+  V('multicolor', 'multicolor-estrella', 'Estrella multicolor', 'Salpicado de colores para el que despierte.', true),
+  V('kit-1', 'kit-disenos-1', 'El kit en varios diseños', 'Tambor, baqueta y forro en cada acabado.', true),
+  V('kit-2', 'kit-disenos-2', 'Distintos acabados', 'El mismo kit, pintado de otra manera.', true)
 ];
 
 export const HERO = {
-  // Fondo desenfocado y atenuado: el original es de 640x360 y se ve borroso a
-  // pantalla completa, así que va como textura, no como protagonista.
-  videoFondo: '/assets/hero/plaza-fondo.mp4',
-  posterFondo: '/assets/hero/plaza-fondo.jpg',
+  // Los niños tocando sustituyen a la plaza. Es vertical (360x640) y el tambor
+  // 3D va a la derecha: en horizontal el niño quedaba encogido en una banda
+  // estrecha al lado del texto.
+  videoFondo: '/assets/hero/ninos-tocando.mp4',
+  posterFondo: '/assets/hero/ninos-tocando.webp',
   modelo: '/assets/drums/Tricolor/modelo.glb',
   audioReal: '/assets/audio/fulia-la-guaira-30s.webm'
 };

@@ -9,9 +9,21 @@
  * rejilla, y giran despacio solos. El render es sobre el mismo canvas que el
  * resto de estilos, así que grabar funciona igual.
  */
-const MODELOS = {
+/**
+ * Qué tambor del catálogo representa cada uno de los cuatro del visualizador.
+ *
+ * No tiene por qué ser el tambor del mismo nombre: aquí importa que se distingan
+ * bien a ojo. El gris plateado salió del catálogo y ocupaba el slot del cruzao,
+ * así que ahora lo lleva el tricolor, que junto al turquesa es el más colorido:
+ * contraste claro entre los cuatro, que es lo que un niño necesita para no
+ * perder de vista quién está sonando.
+ *
+ * Exportado para que los tests lean este mapa en vez de duplicarlo: cuando se
+ * duplicaba, cambiar un slot dejaba el test mirando un modelo que ya no existía.
+ */
+export const MODELOS_VISUALIZADOR = {
   prima: 'AzulRayas',
-  cruzao: 'GrisPlateado',
+  cruzao: 'Tricolor',
   pujao: 'MaderaOscura',
   paila: 'MaderaClara'
 };
@@ -65,13 +77,13 @@ export function createDrums3DVisualizer({ canvas, drums = [] }) {
     // el suelo. Cada modelo trae su geometría con el origen donde le/toque, así
     // que se mete en un grupo y se recentra sobre su propia caja: si sólo se
     // escala, el tambor queda flotando o medio enterrado.
-    const ids = Object.keys(MODELOS);
+    const ids = Object.keys(MODELOS_VISUALIZADOR);
     const cargados = await Promise.all(
       ids.map(
         (id) =>
           new Promise((res) => {
             loader.load(
-              `/assets/drums/${MODELOS[id]}/visualizador/modelo.glb`,
+              `/assets/drums/${MODELOS_VISUALIZADOR[id]}/visualizador/modelo.glb`,
               (g) => res([id, g.scene]),
               undefined,
               () => res([id, null])

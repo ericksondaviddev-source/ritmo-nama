@@ -17,13 +17,46 @@ const enDisco = (ruta) => Boolean(ruta) && existsSync(path.join(ROOT, 'public', 
 const reales = PRODUCTS.filter((p) => !p.isCta);
 
 describe('productos del catálogo', () => {
-  it('son 8 productos reales más la CTA, con ids únicos', () => {
-    expect(PRODUCTS).toHaveLength(9);
-    expect(new Set(PRODUCTS.map((p) => p.id)).size).toBe(9);
-    expect(reales).toHaveLength(8);
+  it('son 6 productos reales más la CTA, con ids únicos', () => {
+    // El gris plateado se retiró del catálogo y el Kit Clásico se fusionó con el
+    // Tambor Rojo con Kit: de 8 productos reales se pasa a 6.
+    expect(PRODUCTS).toHaveLength(7);
+    expect(new Set(PRODUCTS.map((p) => p.id)).size).toBe(7);
+    expect(reales).toHaveLength(6);
     const cta = PRODUCTS.find((p) => p.isCta);
     expect(cta).toBeTruthy();
     expect(reales.some((p) => p.id === cta.customizes)).toBe(true);
+  });
+
+  it('el gris plateado ya no está en ninguna parte', () => {
+    expect(PRODUCTS.some((p) => p.id.includes('gris'))).toBe(false);
+    expect(reales.some((p) => p.modelo?.includes('GrisPlateado'))).toBe(false);
+    expect(reales.some((p) => p.foto?.includes('GrisPlateado'))).toBe(false);
+    expect(MODELOS_3D.some((id) => id.includes('gris'))).toBe(false);
+    expect(existsSync(path.join(ROOT, 'public', 'assets', 'drums', 'GrisPlateado'))).toBe(false);
+  });
+
+  it('el Kit Clásico se fusionó dentro del Tambor Rojo con Kit', () => {
+    // Eran dos fichas con el mismo producto partido: una con 3D y sin foto, y
+    // otra con foto y vídeo y sin 3D. Fusionadas, la ficha lo tiene todo.
+    expect(PRODUCTS.some((p) => p.id === 'kit-clasico')).toBe(false);
+    const kit = reales.find((p) => p.id === 'rojo-con-kit');
+    expect(kit).toBeTruthy();
+    expect(kit.name).toBe('Tambor Rojo con Kit');
+    expect(kit.modelo, 'el 3D se conserva').toBeTruthy();
+    expect(kit.foto, 'hereda la foto del kit').toBeTruthy();
+    expect(kit.video, 'hereda el vídeo del kit').toBeTruthy();
+  });
+
+  it('un tambor = una carpeta: los medios de un producto salen todos de ella', () => {
+    // El invariante del módulo: producto = carpeta. La fusión no debe dejar un
+    // producto apuntando a medios de dos carpetas distintas.
+    for (const p of reales) {
+      const carpetas = new Set(
+        [p.modelo, p.foto, p.video].filter(Boolean).map((r) => r.split('/')[3])
+      );
+      expect(carpetas.size, `${p.id} mezcla carpetas: ${[...carpetas].join(', ')}`).toBe(1);
+    }
   });
 
   it('cada medio declarado existe en disco', () => {
@@ -49,10 +82,10 @@ describe('productos del catálogo', () => {
     }
   });
 
-  it('los siete escaneos están optimizados y pesan menos de 3 MB', () => {
+  it('los seis escaneos están optimizados y pesan menos de 3 MB', () => {
     const con3d = reales.filter((p) => p.modelo);
-    expect(con3d).toHaveLength(7);
-    expect(new Set(MODELOS_3D).size).toBe(7);
+    expect(con3d).toHaveLength(6);
+    expect(new Set(MODELOS_3D).size).toBe(6);
     for (const p of con3d) {
       const bytes = statSync(path.join(ROOT, 'public', p.modelo.replace(/^\//, ''))).size;
       expect(bytes, p.id).toBeLessThan(3 * 1024 * 1024);
@@ -94,9 +127,14 @@ describe('acabados honestos', () => {
 // Regresión: un producto sin foto llegó al `src` de la <img> y produjo
 // `src="null"`. Se comprueba sobre el HTML realmente generado.
 describe('marcado del catálogo', () => {
-  it('hay al menos un producto sin foto, para cubrir el caso', () => {
-    // Rojo con Kit entró con 3D y sin material del taller.
-    expect(reales.some((p) => !p.foto)).toBe(true);
+  it('el marcador de foto pendiente existe aunque ya ningún producto lo necesite', async () => {
+    // Ya no hay productos sin foto, pero el marcador sigue siendo la red de
+    // seguridad si una imagen falla al cargar. Se comprueba sobre el marcado,
+    // no confiando en que quede algún producto a medio montar.
+    const { __sinFotoMarkup } = await import('../src/components/catalog.js');
+    const html = __sinFotoMarkup();
+    expect(html).toContain('Foto pendiente');
+    expect(html).not.toMatch(/src="(null|undefined|)"/);
   });
 
   it('el componente no emite src nulo, undefined ni vacío', async () => {
@@ -104,6 +142,7 @@ describe('marcado del catálogo', () => {
     const html = __catalogMarkup();
     expect(html).toContain('data-card=');
     expect(html).not.toMatch(/src="(null|undefined|)"/);
+    // Para cada producto sin foto tiene que salir su marcador.
     for (const p of reales.filter((x) => !x.foto)) {
       expect(html, p.id).toContain('Foto pendiente');
     }
@@ -126,9 +165,41 @@ describe('marcado del catálogo', () => {
       expect(trozo.match(/muted/g), v.id).toBeNull();
     }
   });
+
+  it('cada vídeo del taller trae póster, para no ver una caja negra', async () => {
+    // Con preload="none" y sin póster, hasta que se pulsa reproducir la sección
+    // es una rejilla de rectángulos negros, que es justo lo que parece que no
+    // ha cargado.
+    for (const v of VIDEOS_TALLER) {
+      expect(v.poster, `${v.id} sin póster`).toBeTruthy();
+      expect(enDisco(v.poster), v.id).toBe(true);
+    }
+    const { __catalogMarkup } = await import('../src/components/catalog.js');
+    const html = __catalogMarkup();
+    for (const v of VIDEOS_TALLER) {
+      expect(html, v.id).toContain(`poster="${v.poster}"`);
+    }
+  });
+
+  it('las tarjetas de producto con vídeo también llevan póster', async () => {
+    const { __catalogMarkup } = await import('../src/components/catalog.js');
+    const html = __catalogMarkup();
+    for (const p of reales.filter((x) => x.video)) {
+      const esperado = p.poster;
+      expect(esperado, `${p.id} sin póster`).toBeTruthy();
+      expect(enDisco(esperado), p.id).toBe(true);
+      expect(html, p.id).toContain(`poster="${esperado}"`);
+    }
+  });
 });
 
 describe('medios pendientes', () => {
+  it('ya no queda ningún medio pendiente de los seis tambores', () => {
+    // Con los vídeos nuevos instalados, cada producto real tiene 3D, foto y
+    // vídeo. Si esto vuelve a listar algo, es que falta instalar material.
+    expect(MEDIOS_PENDIENTES).toEqual([]);
+  });
+
   it('la lista de pendientes es coherente con los productos', () => {
     for (const m of MEDIOS_PENDIENTES) {
       const p = reales.find((x) => x.id === m.id);
@@ -162,8 +233,30 @@ describe('hero', () => {
     expect(trozo).not.toMatch(/\son[a-z]*=/); // ni controls ni autoplay con sonido
   });
 
+  it('el fondo del hero se ve de verdad: no lo tapan hasta casi borrarlo', () => {
+    // Regresión: el vídeo llevaba opacity-40 y encima un gradiente
+    // via-zinc-950/80, así que la opacidad efectiva era de un ~8% y el vídeo
+    // "no se veía". Ahora el vídeo tiene que pesar lo suficiente por sí solo.
+    const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const i = html.indexOf('data-hero-video-el');
+    const trozo = html.slice(i, i + 500);
+    const opacidad = Number(trozo.match(/opacity-(\d+)/)?.[1] ?? 0);
+    expect(opacidad, 'el vídeo del hero está tan atenuado que no se ve').toBeGreaterThanOrEqual(50);
+
+    // Y el gradiente de encima no debe ahogarlo: mide su punto más opaco.
+    const gradiente = html.slice(html.indexOf('bg-gradient-to-b'), html.indexOf('bg-gradient-to-b') + 300);
+    const capa = gradiente.match(/via-zinc-950\/(\d+)/)?.[1];
+    if (capa) expect(Number(capa), 'el gradiente tapa el vídeo').toBeLessThanOrEqual(75);
+  });
+
+  it('el hero usa el vídeo de los niños tocando, no el de la plaza', () => {
+    expect(HERO.videoFondo).toContain('ninos-tocando');
+    expect(enDisco(HERO.videoFondo)).toBe(true);
+    expect(enDisco(HERO.posterFondo)).toBe(true);
+  });
+
   it('el vídeo de plaza ya no está en la sección de taller', () => {
-    expect(VIDEOS_TALLER.some((v) => v.src.includes('plaza'))).toBe(false);
+    expect(VIDEOS_TALLER.some((v) => v.src.includes('plaza-fondo'))).toBe(false);
   });
 });
 
