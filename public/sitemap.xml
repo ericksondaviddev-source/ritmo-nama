@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sitemap de una sola página: la web es una landing con secciones y todo el
+  contenido enlazado desde el inicio. La URL base se rellena al desplegar
+  (scripts/build-sitemap.mjs); mientras esté vacía, se deja la ruta relativa
+  para no publicar un dominio inventado.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

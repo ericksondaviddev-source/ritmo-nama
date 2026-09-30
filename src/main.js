@@ -4,6 +4,7 @@ import { mountHero } from './components/hero.js';
 import { mountCourse } from './components/course.js';
 import { mountMidipad } from './components/midipad.js';
 import { mountVideoExport } from './components/video-export.js';
+import { mountFaq } from './components/seo.js';
 import { mountContact } from './components/contact.js';
 import { createDrumEngine } from './core/audio/drum-engine.js';
 import { createMidipadAudio } from './core/audio/midipad.js';
@@ -24,6 +25,9 @@ mountCourse(document.getElementById('minicurso'), { engine });
 mountMidipad(document.getElementById('midipad'), { engine, getContext: getAudioContext, audio: composition });
 mountVideoExport(document.getElementById('videoexport'), { engine, getContext: getAudioContext, audio: composition });
 mountContact(document.getElementById('contacto'));
+// FAQ visible + datos estructurados: el texto que ve el visitante es el mismo
+// que declara el FAQPage, que es lo que Google exige.
+mountFaq(document.getElementById('preguntas'));
 // El catálogo se importa y monta tras el primer pintado: no pesa en el bundle
 // inicial ni retrasa el FCP
 const mountCatalogDeferred = () =>

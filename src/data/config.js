@@ -11,6 +11,34 @@ export const contact = {
   }
 };
 
+/**
+ * Datos públicos de la marca. Se rellenan con los definitivos; mientras
+ * `sitio` esté vacío no se emiten etiquetas de canonical ni de Open Graph con
+ * una URL inventada, porque una URL equivocada en un sitemap o en canonical es
+ * peor que no tenerla.
+ */
+export const brand = {
+  nombre: "Ritmo Na'má",
+  organizacion: 'Cuero Na\'má',
+  sitio: '', // p. ej. https://cueronama.com
+  email: '',
+  telefono: '',
+  direccion: {
+    localidad: 'La Guaira',
+    provincia: 'La Guaira',
+    pais: 'VE'
+  },
+  /** Canal de YouTube: se rellena con la URL real. */
+  youtube: {
+    canal: '',
+    handle: '',
+    /** Serie de episodes. El id basta; la URL se compone. */
+    episodios: []
+  }
+};
+
+const sinSitio = !brand.sitio;
+
 export function contactHref(section = 'hero') {
   const message = contact.messages[section] ?? '';
   if (contact.channel === 'whatsapp' && contact.number) {
@@ -36,3 +64,12 @@ export function whatsappLink(message) {
   }
   return null;
 }
+
+export const youtube = {
+  canal: brand.youtube.canal,
+  handle: brand.youtube.handle,
+  episodios: brand.youtube.episodios.map((e) => ({
+    ...e,
+    url: e.id ? `https://www.youtube.com/watch?v=${e.id}` : e.url ?? ''
+  }))
+};

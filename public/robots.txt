@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Los medios pesados no aportan nada a un buscador y sí slowed el rastreo.
+Disallow: /assets/drums/
+Disallow: /assets/video/
+Disallow: /assets/hero/
+Disallow: /assets/social/
+
+Sitemap: /sitemap.xml
