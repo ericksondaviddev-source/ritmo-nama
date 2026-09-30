@@ -13,6 +13,7 @@
     "optimize:models": "node scripts/optimize-models.mjs",
     "import:scans": "node --max-old-space-size=8192 scripts/import-scans.mjs",
     "optimize:scans": "node --max-old-space-size=8192 scripts/optimize-scans.mjs",
+    "media:drums": "node scripts/build-drum-media.mjs",
     "tts:course": "node scripts/tts-course.mjs"
   },
   "dependencies": {

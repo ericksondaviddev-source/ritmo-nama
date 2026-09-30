@@ -1,6 +1,7 @@
-﻿import {
+import {
   ACABADOS,
   KIT_INCLUIDO,
+  MEDIOS_PENDIENTES,
   MODELOS_3D,
   PRODUCTO_POR_DEFECTO,
   PRODUCTS,
@@ -24,7 +25,6 @@ function sinFoto(clases = 'absolute inset-0') {
 
 function cardMarkup(product) {
   if (product.isCta) {
-    const target = PRODUCTS.find((p) => p.id === product.customizes);
     return `
       <article class="flex flex-col justify-between rounded-3xl border border-dashed border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-zinc-900 p-6">
         <div>
@@ -42,28 +42,36 @@ function cardMarkup(product) {
       </article>`;
   }
 
-  const tiene3d = Boolean(product.model);
-  const sinVideo = !product.video;
-  // Un producto puede entrar con 3D antes de tener foto del taller: en vez de
-  // una imagen rota, se dice claramente que falta.
-  const visual = product.poster
+  const tiene3d = Boolean(product.modelo);
+  // Un producto puede entrar con 3D antes de tener foto o vídeo del taller: en
+  // vez de una imagen rota, se dice claramente qué falta.
+  const visual = product.foto
     ? `<img
-          src="${product.poster}"
+          src="${product.foto}"
           alt="${product.name}"
           loading="lazy"
           decoding="async"
-          onerror="this.remove()"
+          width="900"
+          height="900"
+          onerror="this.replaceWith(window.__sinFoto())"
           class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />`
     : sinFoto();
+
+  const etiquetas = [
+    tiene3d ? '' : '<span class="absolute right-3 top-3 rounded-full bg-zinc-950/85 px-2.5 py-1 text-[11px] font-bold text-zinc-300">Sin 3D</span>',
+    product.destacado
+      ? '<span class="absolute right-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-black text-zinc-950">Favorito</span>'
+      : ''
+  ].join('');
+
   return `
     <article data-card="${product.id}" class="group overflow-hidden rounded-3xl glass">
       <div class="relative aspect-[4/3] overflow-hidden bg-zinc-950">
         ${visual}
         ${
-          sinVideo
-            ? ''
-            : `<video
+          product.video
+            ? `<video
           data-reel
           src="${product.video}"
           muted
@@ -73,13 +81,10 @@ function cardMarkup(product) {
           aria-hidden="true"
           class="absolute inset-0 hidden h-full w-full object-cover"
         ></video>`
+            : ''
         }
-        <span class="absolute left-3 top-3 rounded-full bg-zinc-950/85 px-2.5 py-1 text-xs font-black text-amber-400">${product.price}</span>
-        ${
-          tiene3d
-            ? ''
-            : '<span class="absolute right-3 top-3 rounded-full bg-zinc-950/85 px-2.5 py-1 text-[11px] font-bold text-zinc-300">Sin 3D</span>'
-        }
+        <span class="absolute left-3 top-3 rounded-full bg-zinc-950/85 px-2.5 py-1 text-xs font-black text-amber-400">${product.precio}</span>
+        ${etiquetas}
       </div>
       <div class="p-4">
         <h3 class="font-bold text-zinc-100">${product.name}</h3>
@@ -109,7 +114,7 @@ function acabadoMarkup(primeroId) {
         ${a.id === primeroId ? 'checked' : ''}
       />
       <span
-        class="flex w-[92px] flex-col items-center gap-1.5 rounded-2xl border-2 border-zinc-800 p-1.5 transition-all hover:border-zinc-600 peer-checked:border-amber-400 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400"
+        class="flex w-[86px] flex-col items-center gap-1.5 rounded-2xl border-2 border-zinc-800 p-1.5 transition-all hover:border-zinc-600 peer-checked:border-amber-400 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400"
       >
         ${
           a.image
@@ -118,7 +123,9 @@ function acabadoMarkup(primeroId) {
           alt=""
           loading="lazy"
           decoding="async"
-          onerror="this.replaceWith(window.__sinFoto())"
+          width="900"
+          height="900"
+          onerror="this.replaceWith(window.__sinFoto('w-full'))"
           class="aspect-square w-full rounded-xl object-cover"
         />`
             : sinFoto('w-full')
@@ -130,21 +137,42 @@ function acabadoMarkup(primeroId) {
   ).join('');
 }
 
-function tallerMarkup() {
-  const ancho = VIDEOS_TALLER.filter((v) => v.ancho);
-  const vertical = VIDEOS_TALLER.filter((v) => !v.ancho);
+/**
+ * Lo que todavía falta por tambor. No es decoración: es la lista de trabajo de
+ * lo que hay que fotografiar o grabar, visible para quien lleva el taller.
+ */
+function pendientesMarkup() {
+  if (!MEDIOS_PENDIENTES.length) return '';
+  return `
+    <div class="mt-8 rounded-3xl border border-dashed border-zinc-700 p-5">
+      <h3 class="text-sm font-black uppercase tracking-wide text-zinc-400">Pendiente de material</h3>
+      <p class="mt-1 text-xs text-zinc-500">Ya están en 3D, pero falta material del taller.</p>
+      <ul class="mt-3 grid gap-2 sm:grid-cols-2">
+        ${MEDIOS_PENDIENTES.map(
+          (m) => `
+          <li class="flex items-center justify-between gap-3 rounded-xl bg-zinc-900/60 px-3 py-2 text-sm">
+            <span class="text-zinc-300">${m.name}</span>
+            <span class="shrink-0 text-[11px] font-bold text-amber-500/90">falta: ${m.falta.join(' · ')}</span>
+          </li>`
+        ).join('')}
+      </ul>
+    </div>`;
+}
 
-  const card = (v, aspect) => `
+function tallerMarkup() {
+  const verticales = VIDEOS_TALLER.filter((v) => v.vertical);
+  const anchos = VIDEOS_TALLER.filter((v) => !v.vertical);
+
+  const card = (v) => `
     <figure class="overflow-hidden rounded-3xl glass">
       <video
         src="${v.src}"
-        ${v.poster ? `poster="${v.poster}"` : ''}
         loop
         playsinline
         preload="none"
         controls
         aria-label="${v.titulo}"
-        class="aspect-[${aspect}] w-full bg-zinc-950 object-cover"
+        class="aspect-[${v.vertical ? '9/16' : '16/9'}] w-full bg-zinc-950 object-cover"
       ></video>
       <figcaption class="p-4">
         <h3 class="text-sm font-extrabold text-zinc-100">${v.titulo}</h3>
@@ -154,11 +182,11 @@ function tallerMarkup() {
 
   return `
     ${
-      ancho.length
-        ? `<div class="grid gap-4 sm:grid-cols-2">${ancho.map((v) => card(v, '16/9')).join('')}</div>`
+      anchos.length
+        ? `<div class="grid gap-4 sm:grid-cols-2">${anchos.map(card).join('')}</div>`
         : ''
     }
-    <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:max-w-xl">${vertical.map((v) => card(v, '9/16')).join('')}</div>`;
+    <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">${verticales.map(card).join('')}</div>`;
 }
 
 /**
@@ -167,7 +195,10 @@ function tallerMarkup() {
  * foto, aquí se ve que sale el marcador y nunca un src inválido.
  */
 export const __catalogMarkup = () =>
-  PRODUCTS.map(cardMarkup).join('') + acabadoMarkup(PRODUCTO_POR_DEFECTO) + tallerMarkup();
+  PRODUCTS.map(cardMarkup).join('') +
+  acabadoMarkup(PRODUCTO_POR_DEFECTO) +
+  tallerMarkup() +
+  pendientesMarkup();
 
 export function mountCatalog(root) {
   if (!root) return null;
@@ -240,11 +271,13 @@ export function mountCatalog(root) {
       </div>
 
       <div class="mt-10">
-        <h3 class="text-sm font-black uppercase tracking-wide text-zinc-400">Del taller y la plaza</h3>
+        <h3 class="text-sm font-black uppercase tracking-wide text-zinc-400">Del taller</h3>
         <div class="mt-4">
           ${tallerMarkup()}
         </div>
       </div>
+
+      ${pendientesMarkup()}
     </div>`;
 
   wireContactCta(root, 'catalog');
@@ -270,7 +303,7 @@ export function mountCatalog(root) {
   function markButtonState(id) {
     for (const btn of selectButtons) {
       const p = productById(btn.dataset.productId);
-      const isModelView = p?.model && p.id === activeModelId;
+      const isModelView = p?.modelo && p.id === activeModelId;
       btn.setAttribute('aria-pressed', String(Boolean(isModelView)));
     }
   }
@@ -286,7 +319,7 @@ export function mountCatalog(root) {
     const first = productById(activeModelId);
     initPromise = createConfigurator({
       container: host,
-      modelUrl: first.model,
+      modelUrl: first.modelo,
       fallbackVideoUrl: first.video ?? null
     }).then((h) => {
       handle = h;
@@ -302,7 +335,7 @@ export function mountCatalog(root) {
 
   async function loadModel(id) {
     const product = productById(id);
-    if (!product?.model) return;
+    if (!product?.modelo) return;
     activeModelId = id;
     host.dataset.activeProduct = id;
     markButtonState(id);
@@ -311,7 +344,7 @@ export function mountCatalog(root) {
       await ensureConfigurator();
       return;
     }
-    await handle.setModel(product.model);
+    await handle.setModel(product.modelo);
   }
 
   // Un producto con escaneo gira en 3D; uno sin escaneo sólo se muestra su foto.
@@ -320,7 +353,7 @@ export function mountCatalog(root) {
     if (!product || product.isCta) return;
     selectedFinishId = id;
     markFinishState(id);
-    if (product.model) {
+    if (product.modelo) {
       if (scroll) host.scrollIntoView({ behavior: 'smooth', block: 'center' });
       await loadModel(id);
       return;

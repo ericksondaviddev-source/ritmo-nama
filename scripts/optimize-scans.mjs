@@ -17,16 +17,26 @@ import { join, resolve, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const SRC = resolve('assets drums/Nueva carpeta');
+const VISUAL = resolve('assets drums/visual');
+const NUEVA_CARPETA = SRC;
 const OUT = resolve('node_modules/.cache/scans');
-const DEST = resolve('public/assets/models');
+const DEST = resolve('public/assets/drums');
 
-/** Nombre de salida estable por producto del catálogo. */
+/**
+ * Los escaneos del taller, con la ruta de origen y el nombre de salida estable.
+ *
+ * `ratio` se ajusta por escaneo: los que llegan con 1-1,5M triángulos se
+ * simplifican fuerte, pero el tricolor sólo trae 50K y casi todo su peso son
+ * texturas: ahí conviene conservarlo entero y comprimir sobre todo la imagen.
+ */
 const SCANS = [
-  { file: 'azul con rayas.glb', name: 'EscaneoAzul' },
-  { file: 'gris plateado.glb', name: 'EscaneoGris' },
-  { file: 'negro con chispas.glb', name: 'EscaneoNegro' },
-  { file: 'madera clara.glb', name: 'EscaneoMaderaClara' },
-  { file: 'madera oscura.glb', name: 'EscaneoMaderaOscura' }
+  { dir: NUEVA_CARPETA, file: 'azul con rayas.glb', name: 'AzulRayas', ratio: 0.15 },
+  { dir: NUEVA_CARPETA, file: 'gris plateado.glb', name: 'GrisPlateado', ratio: 0.15 },
+  { dir: NUEVA_CARPETA, file: 'madera clara.glb', name: 'MaderaClara', ratio: 0.15 },
+  { dir: NUEVA_CARPETA, file: 'madera oscura.glb', name: 'MaderaOscura', ratio: 0.15 },
+  { dir: NUEVA_CARPETA, file: 'rayas.glb', name: 'Rayas', ratio: 0.15 },
+  { dir: NUEVA_CARPETA, file: 'rojo con kit.glb', name: 'RojoConKit', ratio: 0.15 },
+  { dir: VISUAL, file: 'Drumkidmulticolor3D.glb', name: 'Tricolor', ratio: 1 }
 ];
 
 const argv = process.argv.slice(2);
@@ -53,25 +63,32 @@ function gltfTransform(args) {
 }
 
 function optimize(scan) {
-  const src = join(SRC, scan.file);
-  if (!existsSync(src)) throw new Error(`No existe "${scan.file}" en assets drums/Nueva carpeta`);
+  const src = join(scan.dir ?? SRC, scan.file);
+  if (!existsSync(src)) throw new Error(`No existe "${scan.file}"`);
+
+  const ratio = scan.ratio ?? RATIO;
 
   mkdirSync(OUT, { recursive: true });
-  mkdirSync(DEST, { recursive: true });
+  mkdirSync(join(DEST, scan.name), { recursive: true });
 
   const weld = join(OUT, `${scan.name}.weld.glb`);
   const simp = join(OUT, `${scan.name}.simp.glb`);
-  const final = join(DEST, `${scan.name}.glb`);
+  const final = join(DEST, scan.name, 'modelo.glb');
 
   const before = statSync(src).size;
   gltfTransform(['weld', src, weld]);
-  gltfTransform(['simplify', weld, simp, '--ratio', String(RATIO), '--error', '0.001']);
-  gltfTransform(['optimize', simp, final, '--compress', 'draco', '--texture-compress', 'webp']);
+  // Con ratio 1 no hace falta pasar por el simplificador: se pierde detalle
+  // sin ganar nada cuando el modelo ya trae pocos triángulos.
+  const siguiente = ratio >= 1 ? weld : simp;
+  if (ratio < 1) {
+    gltfTransform(['simplify', weld, simp, '--ratio', String(ratio), '--error', '0.001']);
+  }
+  gltfTransform(['optimize', siguiente, final, '--compress', 'draco', '--texture-compress', 'webp']);
 
   for (const tmp of [weld, simp]) rmSync(tmp, { force: true });
   const after = statSync(final).size;
   console.log(
-    `  ${scan.name}: ${mb(before)} -> ${mb(after)} ` +
+    `  ${scan.name.padEnd(13)} ${mb(before)} -> ${mb(after)}  ` +
       `(${((100 * after) / before).toFixed(1)}% del original, 1/${(before / after).toFixed(0)})`
   );
   return after;

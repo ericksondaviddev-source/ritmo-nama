@@ -72,6 +72,29 @@
       <section id="hero" aria-labelledby="hero-title" class="relative overflow-hidden border-b border-zinc-900 py-12 lg:py-20">
         <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-600/10 via-zinc-950/0 to-zinc-950"></div>
 
+        <!--
+          Vídeo de fondo del velorio. El desenfoque va HORNEADO en el archivo
+          (scripts/build-drum-media y ffmpeg gblur), no como filtro CSS: un
+          blur-2xl a pantalla completa cuesta GPU en cada fotograma y en un
+          Android eso se nota. Aquí sólo se atenúa con opacidad.
+          El original es de 640x360, así que va de textura y no compite con el
+          tambor. Sin audio siempre.
+        -->
+        <div data-hero-video class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+          <video
+            data-hero-video-el
+            muted
+            loop
+            playsinline
+            preload="none"
+            poster="/assets/hero/plaza-fondo.jpg"
+            class="h-full w-full object-cover opacity-40"
+          >
+            <source src="/assets/hero/plaza-fondo.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-zinc-950/60 via-zinc-950/80 to-zinc-950"></div>
+
         <div class="relative z-10 mx-auto grid max-w-6xl items-center gap-10 px-4 lg:grid-cols-2">
           <div class="space-y-6 text-center lg:text-left">
             <span class="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-400">
