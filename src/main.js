@@ -3,6 +3,7 @@ import { mountHeader } from './components/header.js';
 import { mountHero } from './components/hero.js';
 import { mountCourse } from './components/course.js';
 import { mountMidipad } from './components/midipad.js';
+import { mountRenderStatus } from './components/render-status.js';
 import { mountFaq } from './components/seo.js';
 import { mountContact } from './components/contact.js';
 import { createDrumEngine } from './core/audio/drum-engine.js';
@@ -26,10 +27,20 @@ mountContact(document.getElementById('contacto'));
 // FAQ visible + datos estructurados: el texto que ve el visitante es el mismo
 // que declara el FAQPage, que es lo que Google exige.
 mountFaq(document.getElementById('preguntas'));
+// El indicador del render es fijo y va fuera de cualquier sección: si viviera en
+// el editor, el visitante que se fuese a ver otra cosa lo perdería de vista y
+// pensaría que el trabajo se había perdido.
+mountRenderStatus();
 // El catálogo se importa y monta tras el primer pintado: no pesa en el bundle
 // inicial ni retrasa el FCP
 const mountCatalogDeferred = () =>
-  import('./components/catalog.js').then(({ mountCatalog }) => mountCatalog(document.getElementById('catalogo')));
+  Promise.all([
+    import('./components/catalog.js'),
+    import('./components/editor.js')
+  ]).then(([catalogo, editor]) => {
+    catalogo.mountCatalog(document.getElementById('catalogo'));
+    editor.mountEditor(document.getElementById('editor'));
+  });
 if ('requestIdleCallback' in window) {
   requestIdleCallback(mountCatalogDeferred, { timeout: 500 });
 } else {
