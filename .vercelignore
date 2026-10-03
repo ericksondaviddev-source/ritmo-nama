@@ -1,0 +1,20 @@
+﻿# Exclusiones de deploy (lo demás: src/, public/, configs ≈ 25 MB)
+# Patrones con / inicial anclados a la raíz: sin eso, "assets/" también
+# excluía public/assets/ y el hero se 404 en Vercel.
+/.git/
+/.vercel/
+/node_modules/
+/dist/
+/docs/
+/tests/
+/scripts/
+/assets/
+/assets drums/
+/drums/
+dev.log
+preview.log
+vite-preview.log
+hero-shot.png
+lighthouse-report.json
+/.playwright-mcp/
+/.superpowers/

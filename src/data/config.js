@@ -20,7 +20,7 @@ export const contact = {
 export const brand = {
   nombre: "Ritmo Na'má",
   organizacion: 'Cuero Na\'má',
-  sitio: '', // p. ej. https://cueronama.com
+  sitio: 'https://ritmonama.vercel.app',
   email: '',
   telefono: '',
   direccion: {
