@@ -92,16 +92,29 @@ export async function exportarClip({ blob, plantilla, nombre, formato, alProgres
   });
   salida.addVideoTrack(fuenteVideo, { frameRate: FPS });
 
-  // Audio: decodificamos las muestras del original y las re-codificamos a AAC.
+  // Audio: muestras decodificadas con `AudioSampleSink` (la API de mediabunny no
+  // expone `samples()` en `InputAudioTrack`; sin el sink el iterador quedaba
+  // null y el MP4 salía mudo). Si el decoder no puede con el códec, seguimos
+  // sin audio en vez de romper la exportación.
+  const duracion = await pistaVideo.computeDuration();
   let pistaAudio = await entrada.getPrimaryAudioTrack();
-  const fuenteAudio = pistaAudio
-    ? new AudioSampleSource({ codec: 'aac', quality: new Quality('high') })
-    : null;
+  let audioIter = null;
+  if (pistaAudio) {
+    try {
+      const sinkAudio = new mb.AudioSampleSink(pistaAudio);
+      audioIter = sinkAudio.samples(0, duracion);
+    } catch {
+      audioIter = null;
+    }
+  }
+  const fuenteAudio =
+    audioIter && (await mb.canEncodeAudio('aac'))
+      ? new AudioSampleSource({ codec: 'aac', quality: new Quality('high') })
+      : null;
   if (fuenteAudio) salida.addAudioTrack(fuenteAudio);
 
   await salida.start();
 
-  const duracion = await pistaVideo.computeDuration();
   const total = Math.max(1, Math.round(duracion * FPS));
 
   const sink = new (await import('mediabunny')).CanvasSink(
@@ -116,16 +129,6 @@ export async function exportarClip({ blob, plantilla, nombre, formato, alProgres
   // media docena de segundos.
   const iterFotogramas = sink.canvases(0, duracion);
   let proximo = iterFotogramas.next();
-
-  // Audio: intentamos leer muestras; si la API no las expone, seguimos sin audio.
-  let audioIter = null;
-  if (pistaAudio && typeof pistaAudio.samples === 'function') {
-    try {
-      audioIter = pistaAudio.samples();
-    } catch {
-      audioIter = null;
-    }
-  }
 
   // Entrega de audio con "peek": la muestra que se lee se guarda y se emite en
   // el fotograma que le toca. Antes cada fotograma hacía `for await` + `break`:
@@ -144,6 +147,13 @@ export async function exportarClip({ blob, plantilla, nombre, formato, alProgres
       }
       if (pendiente.timestamp >= hasta) return;
       await fuenteAudio.add(pendiente);
+      // `add()` no cierra la muestra (shouldClose=false); si nadie la cierra,
+      // el navegador avisa por consola al recogerla.
+      try {
+        pendiente.close();
+      } catch {
+        /* ya estaba cerrada */
+      }
       pendiente = null;
     }
   }
@@ -220,6 +230,20 @@ export async function exportarClip({ blob, plantilla, nombre, formato, alProgres
   } catch {
     /* ya estaba cerrado */
   }
+
+  // Muestras de audio posteriores al último fotograma: se entregan todas
+  // antes de cerrar la pista para que el audio no se quede corto.
+  try {
+    if (fuenteAudio && audioIter) await entregarAudio(Infinity);
+  } catch {
+    /* el decoder ya se cerró */
+  }
+  try {
+    pendiente?.close();
+  } catch {
+    /* ya estaba cerrada */
+  }
+  pendiente = null;
 
   await fuenteVideo.close();
   if (fuenteAudio) await fuenteAudio.close();

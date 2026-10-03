@@ -8,7 +8,7 @@
  *
  * Uso: node scripts/mp4-e2e.mjs
  */
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -274,6 +274,49 @@ async function principal() {
   const archivos = fs.readdirSync(DESCARGAS).filter((f) => f.toLowerCase().endsWith('.mp4'));
   const bytes = archivos.length ? fs.statSync(path.join(DESCARGAS, archivos[0])).size : 0;
   paso(bytes > 50000, 'archivo .mp4 descargado', `${archivos[0] ?? 'ninguno'} — ${bytes} bytes`);
+
+  // ── 6b. el MP4 lleva audio real (pista AAC con volumen audible) ──────────
+  if (archivos.length) {
+    const mp4 = path.join(DESCARGAS, archivos[0]);
+    const FFPROBE = String.raw`C:\ffmpeg\ffmpeg-master-latest-win64-gpl-shared\bin\ffprobe.exe`;
+    const FFMPEG = String.raw`C:\ffmpeg\ffmpeg-master-latest-win64-gpl-shared\bin\ffmpeg.exe`;
+    let pista = '';
+    try {
+      pista = execSync(
+        `"${FFPROBE}" -v error -select_streams a -show_entries stream=codec_name,codec_type -of compact "${mp4}"`,
+        { encoding: 'utf8' }
+      ).trim();
+    } catch (e) {
+      pista = 'ffprobe falló: ' + e.message.slice(0, 120);
+    }
+    paso(
+      pista.includes('codec_type=audio'),
+      'el MP4 tiene pista de audio',
+      pista || 'sin pistas de audio'
+    );
+    if (pista.includes('codec_type=audio')) {
+      let volumen = '';
+      try {
+        const err = execSync(
+          `"${FFMPEG}" -hide_banner -i "${mp4}" -map 0:a -af volumedetect -f null - 2>&1`,
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+        );
+        volumen = err;
+      } catch (e) {
+        volumen = String(e.stdout ?? '') + String(e.stderr ?? '');
+      }
+      const media = volumen.match(/mean_volume:\s*(-?[\d.]+) dB/)?.[1];
+      const pico = volumen.match(/max_volume:\s*(-?[\d.]+) dB/)?.[1];
+      const audible = media !== undefined && Number(media) > -50;
+      paso(
+        audible,
+        'audio audible (no es silencio)',
+        `mean=${media ?? '?'} dB max=${pico ?? '?'} dB`
+      );
+    }
+  } else {
+    paso(false, 'el MP4 tiene pista de audio', 'no hay archivo que analizar');
+  }
 
   // ── 7. botones restaurados tras exportar ────────────────────────────────
   const tras = await evaluar(`(() => ({
