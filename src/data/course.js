@@ -16,6 +16,25 @@ export const COURSE_INTRO = {
     'Del 2 de mayo al 6 de junio La Guaira vive el velorio de Cruz de Mayo. Se arma una cruz de madera en la plaza, se reza el rosario y se canta con décimas y guazas. La música no es un adorno: es la velación. Esa noche se toca la fulia, el tambor de tres tambores que acompaña al velorio, y al otro lado de la plaza responde el tumbao. Nadie aplaude ni nadie baila mientras se reza: el tumbao es un silencio respetuoso, el rezo es el que golpea.'
 };
 
+/**
+ * Reto de oído: suena el patrón de un tambor solo y hay que adivinar cuál.
+ * Cuatro rondas por partida (una por instrumento, sin repetir). Los textos
+ * son provisionales: el cliente los valida junto al resto del minicurso.
+ */
+export const COURSE_QUIZ = {
+  titulo: '¿Cuál está sonando?',
+  intro:
+    'Cuatro rondas: suena un tambor solo y tienes que adivinar cuál. Escucha el registro — la prima es la más aguda, el pujao el más grave y la paila suena a madera.',
+  boton: 'Empezar el reto',
+  ronda: 'Ronda {n} de {total}',
+  pregunta: '¿Qué tambor es?',
+  acierto: '¡Exacto!',
+  error: (title) => `Era ${title}. Vuelve a su tarjeta y escúchalo otra vez.`,
+  fin: (aciertos, total) => `Reto terminado: ${aciertos} de ${total} correctas.`,
+  otraRonda: 'Otra ronda',
+  mejor: (pct) => `Mejor marca: ${pct}%`
+};
+
 export const COURSE = [
   {
     instrument: 'prima',
