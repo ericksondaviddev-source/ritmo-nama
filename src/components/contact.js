@@ -1,5 +1,5 @@
 import { KIT_INCLUIDO } from '../data/catalog.js';
-import { contact, contactHref, whatsappLink } from '../data/config.js';
+import { brand, contact, contactHref, whatsappLink } from '../data/config.js';
 import { contactCtaMarkup, wireContactCta } from './contact-cta.js';
 
 function socialLinks() {
@@ -12,6 +12,11 @@ function socialLinks() {
   if (contact.tiktok) {
     links.push(
       `<a href="https://tiktok.com/@${contact.tiktok}" target="_blank" rel="noopener,noreferrer" class="rounded-full border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-bold text-zinc-200 transition-colors hover:border-amber-500/60 hover:text-amber-300">🎵 TikTok</a>`
+    );
+  }
+  if (brand.youtube.canal) {
+    links.push(
+      `<a href="${brand.youtube.canal}" target="_blank" rel="noopener,noreferrer" class="rounded-full border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-bold text-zinc-200 transition-colors hover:border-amber-500/60 hover:text-amber-300">▶️ YouTube</a>`
     );
   }
   return links.join('');

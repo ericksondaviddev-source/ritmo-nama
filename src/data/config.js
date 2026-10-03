@@ -1,13 +1,13 @@
 export const contact = {
-  channel: null, // 'whatsapp' | 'telegram' | null
-  number: null, // ej. '584121234567'
-  instagram: null, // ej. 'ritmonama' (sin @)
-  tiktok: null, // ej. 'ritmonama' (sin @)
+  channel: 'whatsapp', // 'whatsapp' | 'telegram' | null
+  number: '584241875518', // ej. '584121234567'
+  instagram: 'ritmo.nama.oficial', // ej. 'ritmonama' (sin @)
+  tiktok: 'ritmo.nama.oficial', // ej. 'ritmonama' (sin @)
   messages: {
-    hero: '',
-    catalog: '',
-    midipad: '',
-    contact: ''
+    hero: '¡Hola! Vengo del sitio Ritmo Na’má y me interesa un tambor Cuero Na’má.',
+    catalog: '¡Hola! Me interesa este tambor del catálogo Cuero Na’má:',
+    midipad: '¡Hola! Estuve probando el MidiPad de Ritmo Na’má y quiero mi tambor.',
+    contact: '¡Hola! Quiero información para pedir mi tambor Cuero Na’má.'
   }
 };
 
@@ -30,8 +30,8 @@ export const brand = {
   },
   /** Canal de YouTube: se rellena con la URL real. */
   youtube: {
-    canal: '',
-    handle: '',
+    canal: 'https://www.youtube.com/@Ritmonamá',
+    handle: '@Ritmonamá',
     /** Serie de episodes. El id basta; la URL se compone. */
     episodios: []
   }

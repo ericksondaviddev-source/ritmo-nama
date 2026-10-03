@@ -7,9 +7,22 @@ const DRUM_IDS = ['prima', 'cruzao', 'pujao', 'paila'];
 
 describe('config de contacto', () => {
   it('con channel null no produce enlaces rotos', () => {
-    expect(contact.channel).toBe(null);
+    const original = { ...contact };
+    Object.assign(contact, { channel: null, number: null });
+
     expect(contactHref('hero')).toBe(null);
     expect(contactLabel()).toBe('Próximamente');
+    expect(whatsappLink('Hola')).toBe(null);
+
+    Object.assign(contact, original);
+  });
+
+  it('la config real trae WhatsApp, redes y YouTube', () => {
+    expect(contact.channel).toBe('whatsapp');
+    expect(contact.number).toBe('584241875518');
+    expect(contact.instagram).toBe('ritmo.nama.oficial');
+    expect(contact.tiktok).toBe('ritmo.nama.oficial');
+    expect(contactHref('contact')).toMatch(/^https:\/\/wa\.me\/584241875518\?text=/);
   });
 
   it('con whatsapp arma wa.me con el mensaje de la sección', () => {
@@ -38,9 +51,10 @@ describe('config de contacto', () => {
   });
 
   it('whatsappLink arma el enlace con mensaje arbitrario solo con canal configurado', () => {
+    const original = { ...contact };
+    Object.assign(contact, { channel: null, number: null });
     expect(whatsappLink('Hola')).toBe(null);
 
-    const original = { ...contact };
     Object.assign(contact, { channel: 'whatsapp', number: '584121234567' });
     expect(whatsappLink('Quiero un Drumkid')).toBe(
       'https://wa.me/584121234567?text=' + encodeURIComponent('Quiero un Drumkid')
