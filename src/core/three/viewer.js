@@ -177,6 +177,16 @@ export async function createViewer({ container, modelUrl, fallbackVideoUrl, onHo
     function render() {
       frame = 0;
       if (!visible) return;
+      // Durante la exportación de MP4 la página se congela (clase
+      // `exportando`): este bucle es independiente del visualizador principal
+      // y seguía renderizando el 3D a 17 fps, saturando la GPU software y
+      // dejando al codificador de vídeo sin tiempo (exportación a ~1 fps).
+      // Se mantiene vivo el rAF pero sin trabajo: al terminar la exportación
+      // el render continúa solo.
+      if (document.documentElement.classList.contains('exportando')) {
+        frame = requestAnimationFrame(render);
+        return;
+      }
       frame = requestAnimationFrame(render);
       controls.update();
 

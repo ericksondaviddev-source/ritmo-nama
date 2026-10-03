@@ -75,3 +75,20 @@ body {
   .is-hit .hotspot-core,
   .is-hit .hotspot-ring { animation: none; }
 }
+
+/* Durante la exportación de MP4 la página queda congelada: sin animaciones y
+   sin contenido visible fuera del modal. Con todo activo, el codificador
+   WebCodecs y el resto de la página compiten por la GPU compartida y la
+   exportación cae a ~1 fps; congelada, corre a la velocidad normal. */
+html.exportando body > *:not([data-export-modal]) {
+  visibility: hidden;
+}
+html.exportando *,
+html.exportando *::before,
+html.exportando *::after {
+  animation: none !important;
+  transition: none !important;
+}
+html.exportando [data-export-modal] {
+  backdrop-filter: none !important;
+}

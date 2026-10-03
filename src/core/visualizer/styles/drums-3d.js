@@ -36,6 +36,9 @@ export function createDrums3DVisualizer({ canvas, drums = [] }) {
   const Tambores = new Map(); // id -> { malla, base, fuerza }
   let cargando = true;
   let fallo = null;
+  // Resolución que manda sobre el tamaño CSS: la fija el modal de exportación
+  // para que la grabación salga en el formato elegido (720/1080, 9:16 o 16:9).
+  let dimsForzadas = null;
 
   const colorDe = new Map(drums.map((d) => [d.id, d.color]));
 
@@ -55,8 +58,13 @@ export function createDrums3DVisualizer({ canvas, drums = [] }) {
     const loader = new GLTFLoader();
     loader.setDRACOLoader(dec);
 
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    // `preserveDrawingBuffer`: sin él, el navegador limpia el buffer tras
+    // componer y copiar el canvas (vista previa del modal) o capturarlo
+    // (grabación de exportación) sale en negro en el estilo 3D.
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+    // Si la exportación ya forzó una resolución, el lienzo debe tener
+    // exactamente esos píxeles (ratio 1); si no, el ratio normal de pantalla.
+    renderer.setPixelRatio(dimsForzadas ? 1 : Math.min(devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
 
@@ -132,8 +140,8 @@ export function createDrums3DVisualizer({ canvas, drums = [] }) {
 
   function redimensionar() {
     if (!renderer || !camara) return;
-    const w = canvas.clientWidth || canvas.width;
-    const h = canvas.clientHeight || canvas.height;
+    const w = (dimsForzadas?.w ?? canvas.clientWidth) || canvas.width;
+    const h = (dimsForzadas?.h ?? canvas.clientHeight) || canvas.height;
     renderer.setSize(w, h, false);
     camara.aspect = w / h;
     camara.updateProjectionMatrix();
@@ -142,11 +150,32 @@ export function createDrums3DVisualizer({ canvas, drums = [] }) {
   return {
     estilo: '3d',
     // Un canvas no puede tener a la vez un contexto 2D y uno WebGL. Como los
-    // otros estilos usan 2D, al entrar aquí hay que cambiar el elemento: quien
+    // demás estilos usan 2D, al entrar aquí hay que cambiar el elemento: quien
     // llama a createVisualizer lo hace con un lienzo nuevo.
     necesitaWebGL: true,
     get cargando() {
       return cargando;
+    },
+    get fallo() {
+      return fallo;
+    },
+
+    /**
+     * Fuerza la resolución de render (exportación). Pixel ratio a 1 para que el
+     * lienzo tenga exactamente esos píxeles: es lo que graba MediaRecorder.
+     */
+    ajustar(w, h) {
+      dimsForzadas = { w, h };
+      renderer?.setPixelRatio(1);
+      redimensionar();
+    },
+    /** Vuelve al tamaño CSS con el pixel ratio normal. */
+    restaurar() {
+      dimsForzadas = null;
+      if (renderer) {
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        redimensionar();
+      }
     },
     get fallo() {
       return fallo;

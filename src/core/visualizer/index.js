@@ -64,6 +64,9 @@ export function createVisualizer({
 } = {}) {
   if (!lienzoInicial) return null;
   let lienzo = lienzoInicial;
+  // Resolución nativa del lienzo (960×360): se guarda antes de tocar nada para
+  // poder restaurarla al cerrar el modal de exportación.
+  const dimensionesOriginales = { ancho: lienzo.width, alto: lienzo.height };
   const ctx = lienzo.getContext('2d');
   if (!ctx) return null;
   let alCambiarLienzo = null;
@@ -174,6 +177,41 @@ export function createVisualizer({
     nombreEstilo: def.nombre,
     setAlCambiarLienzo(fn) {
       alCambiarLienzo = fn;
+    },
+    /**
+     * Redimensiona el lienzo al formato de salida (preview y grabación de
+     * exportación). Los estilos 2D leen `canvas.width` cada fotograma, así que
+     * se adaptan solos; el 3D recibe `ajustar` para mover su renderer. La caja
+     * visible también se re-encaja a la nueva proporción (la clase tailwind
+     * fija 8/3) para que detrás del modal no se vea un viz estirado.
+     */
+    setDimensiones(ancho, alto) {
+      if (!ancho || !alto) return;
+      lienzo.width = ancho;
+      lienzo.height = alto;
+      const ratio = ancho / alto;
+      let h = Math.min(window.innerHeight * 0.6, 640);
+      let w = h * ratio;
+      const maxW = lienzo.parentElement?.clientWidth ?? w;
+      if (w > maxW) {
+        w = maxW;
+        h = w / ratio;
+      }
+      lienzo.style.aspectRatio = '';
+      lienzo.style.width = `${Math.round(w)}px`;
+      lienzo.style.height = `${Math.round(h)}px`;
+      lienzo.style.marginInline = 'auto';
+      vista.ajustar?.(ancho, alto);
+    },
+    /** Vuelve a la resolución nativa y reajusta el estilo activo. */
+    restaurarDimensiones() {
+      lienzo.width = dimensionesOriginales.ancho;
+      lienzo.height = dimensionesOriginales.alto;
+      lienzo.style.aspectRatio = '';
+      lienzo.style.width = '';
+      lienzo.style.height = '';
+      lienzo.style.marginInline = '';
+      vista.restaurar?.();
     },
     get isRunning() {
       return corriendo;

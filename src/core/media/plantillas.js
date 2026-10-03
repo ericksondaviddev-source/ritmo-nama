@@ -19,6 +19,24 @@ export const FORMATOS = {
   horizontal: { id: 'horizontal', etiqueta: 'Horizontal 16:9', ancho: 1920, alto: 1080 }
 };
 
+/**
+ * Lienzo real de salida según el formato y la calidad elegidos.
+ *
+ * `calidad` '720' baja la resolución manteniendo la proporción (720×1280 o
+ * 1280×720) y es la opción por defecto: codificar la mitad de píxeles es cerca
+ * del doble de rápido y para WhatsApp o TikTok nadie nota la diferencia. '1080'
+ * devuelve la resolución completa. Siempre pares, que los codecs lo exigen.
+ */
+export function formatoSalida(formatoId, calidad = '720') {
+  const base = FORMATOS[formatoId] ?? FORMATOS.vertical;
+  if (String(calidad) !== '720') {
+    return { id: base.id, etiqueta: base.etiqueta, ancho: base.ancho, alto: base.alto };
+  }
+  const escala = 720 / Math.min(base.ancho, base.alto);
+  const par = (v) => Math.round((v * escala) / 2) * 2;
+  return { id: base.id, etiqueta: base.etiqueta, ancho: par(base.ancho), alto: par(base.alto) };
+}
+
 /** Cuántos caracteres caben en el nombre antes de que se haga ilegible. */
 export const MAX_NOMBRE = 40;
 

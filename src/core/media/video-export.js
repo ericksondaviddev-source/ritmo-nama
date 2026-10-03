@@ -78,10 +78,17 @@ export async function exportarClip({ blob, plantilla, nombre, formato, alProgres
   const lienzo = crearLienzoDeSalida(formato.ancho, formato.alto);
   const ctx = lienzo.getContext('2d');
 
+  // Bitrate según la resolución: 3 Mbps rinden para 720 (y el archivo queda
+  // ligerito para descargar, ~5,5 MB por 15 s); 5 para 1080. `prefer-hardware`
+  // le pide al navegador usar el codificador de vídeo de la gráfica si existe —
+  // en portátiles eso pasa la codificación de "minutos" a "segundos"; sin
+  // gráfica dedicada se cae solo al software.
+  const bitrate = Math.max(formato.ancho, formato.alto) >= 1920 ? 5_000_000 : 3_000_000;
   const fuenteVideo = new CanvasSource(lienzo, {
     codec: eleccion.codec,
-    quality: new Quality('high'),
-    keyFrameInterval: 2
+    quality: new Quality({ bitrate }),
+    keyFrameInterval: 2,
+    hardwareAcceleration: 'prefer-hardware'
   });
   salida.addVideoTrack(fuenteVideo, { frameRate: FPS });
 
@@ -102,6 +109,14 @@ export async function exportarClip({ blob, plantilla, nombre, formato, alProgres
     { poolSize: 2, fit: 'fill' }
   );
 
+  // Fotogramas en orden secuencial. `canvases()` decodifica cada paquete una
+  // sola vez (y precarga un par por delante); la alternativa, `getCanvas(t)`
+  // fotograma a fotograma, re-buscaba desde el keyframe anterior en CADA
+  // llamada y una codificación de 15 s tardaba casi 5 minutos en vez de
+  // media docena de segundos.
+  const iterFotogramas = sink.canvases(0, duracion);
+  let proximo = iterFotogramas.next();
+
   // Audio: intentamos leer muestras; si la API no las expone, seguimos sin audio.
   let audioIter = null;
   if (pistaAudio && typeof pistaAudio.samples === 'function') {
@@ -112,32 +127,85 @@ export async function exportarClip({ blob, plantilla, nombre, formato, alProgres
     }
   }
 
+  // Entrega de audio con "peek": la muestra que se lee se guarda y se emite en
+  // el fotograma que le toca. Antes cada fotograma hacía `for await` + `break`:
+  // `break` invoca `return()` del iterador (o tira la muestra frontera), así
+  // que el audio se cortaba o se perdía en el primer fotograma.
+  let pendiente = null;
+  async function entregarAudio(hasta) {
+    while (fuenteAudio && audioIter) {
+      if (!pendiente) {
+        const r = await audioIter.next();
+        if (r.done) {
+          audioIter = null;
+          return;
+        }
+        pendiente = r.value;
+      }
+      if (pendiente.timestamp >= hasta) return;
+      await fuenteAudio.add(pendiente);
+      pendiente = null;
+    }
+  }
+
   let ultimoCede = performance.now();
+  let ultimoFotograma = null;
+  const depurar = globalThis.__RITMO_EXPORT_DEBUG === 1;
+  const tInicio = depurar ? performance.now() : 0;
+  if (depurar) console.log(`[export-debug] frames=${total} ${formato.ancho}×${formato.alto} codec=${eleccion.codec} bitrate=${bitrate}`);
+  let msIter = 0;
+  let msAdd = 0;
+  let msDraw = 0;
+  let msAudio = 0;
+  // Depuración en vivo: `window.__exportDebug()` devuelve el estado del bucle.
+  const dbg = { i: 0, iter: 0, draw: 0, add: 0, audio: 0 };
+  if (depurar) globalThis.__exportDebug = dbg;
 
   for (let i = 0; i < total; i++) {
     const t = i / FPS;
 
-    // Vídeo
-    const lienzoFrame = await sink.getCanvas(t);
+    // Vídeo: siguiente fotograma del iterador; si la grabación trae menos
+    // fotogramas que los esperados, se sostiene el último (como hacía
+    // getCanvas con "el último ≤ t").
+    if (depurar) dbg.fase = 'iter';
+    let marca = depurar ? performance.now() : 0;
+    const r = await proximo;
+    if (depurar) msIter += performance.now() - marca;
+    if (!r.done) {
+      ultimoFotograma = r.value;
+      proximo = iterFotogramas.next();
+    }    if (depurar) dbg.fase = 'draw';
+    marca = depurar ? performance.now() : 0;
     dibujarFotograma(ctx, {
-      fotograma: lienzoFrame ? (lienzoFrame.canvas ?? lienzoFrame) : null,
+      fotograma: ultimoFotograma ? (ultimoFotograma.canvas ?? ultimoFotograma) : null,
       plantilla,
       nombre,
       formato
     });
+    if (depurar) msDraw += performance.now() - marca;
+    if (depurar) dbg.fase = 'add';
+    marca = depurar ? performance.now() : 0;
     await fuenteVideo.add(t, 1 / FPS);
+    if (depurar) msAdd += performance.now() - marca;
 
-    // Audio: leemos el siguiente bloque de muestras (cada 1/FPS segundos)
-    if (fuenteAudio && audioIter) {
-      const dur = 1 / FPS;
-      for await (const muestra of audioIter) {
-        if (muestra.timestamp >= t + dur) break;
-        if (muestra.timestamp >= t) {
-          await fuenteAudio.add(muestra);
-        }
-      }
+    // Audio: muestras con timestamp < t + 1/FPS (las del tramo de este frame)
+    if (depurar) dbg.fase = 'audio';
+    marca = depurar ? performance.now() : 0;
+    if (fuenteAudio && audioIter) await entregarAudio(t + 1 / FPS);
+    if (depurar) msAudio += performance.now() - marca;
+    if (depurar) dbg.fase = 'libre';
+
+    if (depurar && (i + 1) % 60 === 0) {
+      console.log(`[export-debug] ${i + 1}/${total} iter=${msIter | 0}ms draw=${msDraw | 0}ms add=${msAdd | 0}ms audio=${msAudio | 0}ms`);
     }
 
+    if (depurar) {
+      dbg.i = i + 1;
+      dbg.iter = msIter | 0;
+      dbg.draw = msDraw | 0;
+      dbg.add = msAdd | 0;
+      dbg.audio = msAudio | 0;
+    }
     alProgresar?.((i + 1) / total);
 
     if (performance.now() - ultimoCede > 40) {
@@ -146,9 +214,17 @@ export async function exportarClip({ blob, plantilla, nombre, formato, alProgres
     }
   }
 
+  // Cierra el iterador si quedaron fotogramas sin leer (libera el decoder).
+  try {
+    await iterFotogramas?.return?.();
+  } catch {
+    /* ya estaba cerrado */
+  }
+
   await fuenteVideo.close();
   if (fuenteAudio) await fuenteAudio.close();
   await salida.finalize();
+  if (depurar) console.log(`[export-debug] TOTAL ${(performance.now() - tInicio) | 0} ms`);
 
   return {
     blob: new Blob([salida.target.buffer], {

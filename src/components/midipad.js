@@ -1,8 +1,20 @@
 import { ARTICULATIONS, DRUMS } from '../data/drums.js';
 import { PATTERNS } from '../data/patterns.js';
+import { ESTILOS } from '../core/visualizer/index.js';
 import { createMidipadAudio } from '../core/audio/midipad.js';
 import { reclamarConAviso } from '../core/audio/transport.js';
 import { mountVisualizador } from './visualizador.js';
+import { exportarMp3 } from '../core/media/mp3.js';
+import { exportarClip, puedeExportar, nombreArchivo } from '../core/media/video-export.js';
+import { createGrabador, puedeGrabar, descargar, MAX_SIN_LIMITE } from '../core/media/grabador.js';
+import {
+  formatoSalida,
+  PLANTILLAS,
+  plantillaPorId,
+  MAX_NOMBRE,
+  NOMBRE_POR_DEFECTO
+} from '../core/media/plantillas.js';
+import { dibujarFotograma } from '../core/media/dibujar.js';
 
 const RECORD_MAX_MS = 60000;
 
@@ -91,9 +103,23 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
           </label>
         </div>
 
+        <div class="mt-6 flex flex-wrap items-center gap-3">
+          <span class="text-xs font-black uppercase tracking-widest text-zinc-400">Progreso</span>
+          <div class="h-2 min-w-40 flex-1 overflow-hidden rounded-full bg-zinc-800">
+            <div data-progreso-barra class="h-full w-0 rounded-full bg-amber-500 transition-all duration-500"></div>
+          </div>
+          <span data-progreso-texto role="status" class="text-xs text-zinc-400">Paila · 0/3 escuchas</span>
+          <button
+            type="button"
+            data-progreso-reiniciar
+            class="rounded-lg border border-zinc-700 px-2.5 py-1.5 text-[11px] font-bold text-zinc-400 transition-colors hover:text-zinc-200"
+          >Reiniciar</button>
+        </div>
+
         <div class="mt-6 flex flex-wrap items-center gap-3 border-t border-zinc-800 pt-4">
           <button type="button" data-record-loop class="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm font-bold text-red-300 transition-colors hover:bg-red-500/20">⏺ Grabar loop (60 s)</button>
           <button type="button" data-record-voice class="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm font-bold text-zinc-300 transition-colors hover:bg-zinc-700">🎤 Grabar voz</button>
+          <button type="button" data-export class="rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-zinc-950 transition-colors hover:bg-amber-400">⬇ Exportar</button>
           <span data-padstatus role="status" aria-live="polite" class="text-xs text-zinc-500"></span>
         </div>
         <p data-padaviso class="mt-2 hidden text-xs text-amber-500/90"></p>
@@ -130,6 +156,24 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
         ${articulationControl(d)}
       </div>`
     ).join('');
+
+    // Indicador visual 6/8: "tres y tres"
+    // Agregar grupos resaltados después del paso 3 y paso 9
+    const groupingMarkers = document.createDocumentFragment();
+    for (let i = 0; i < DRUMS.length; i++) {
+      const drum = DRUMS[i];
+      const step3 = document.createElement('div');
+      step3.className = 'grouping-68 bg-zinc-800/60 rounded-xl p-1 my-0.5 text-xs text-zinc-400 absolute top-full left-1/2 -translate-x-1/2 mt-1';
+      step3.textContent = '3';
+      const step9 = document.createElement('div');
+      step9.className = 'grouping-68 bg-zinc-800/60 rounded-xl p-1 my-0.5 text-xs text-zinc-400 absolute top-full left-1/2 -translate-x-1/2 mt-1';
+      step9.textContent = '3';
+      // Insertar después del tercer paso (índice 3) y noveno paso (índice 9)
+      const cells = grid.querySelectorAll(`[data-cell="${drum.id}"]`);
+      if (cells.length > 3) cells[3].parentNode.insertBefore(step3, cells[3].nextSibling);
+      if (cells.length > 9) cells[9].parentNode.insertBefore(step9, cells[9].nextSibling);
+    }
+
     for (const d of DRUMS) {
       cellEls[d.id] = [...grid.querySelectorAll(`[data-cell="${d.id}"]`)];
     }
@@ -263,6 +307,27 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
     audio.setMaster(Number(masterInput.value));
     root.querySelector('[data-master-value]').textContent = `${Math.round(audio.state.master * 100)}%`;
   });
+
+  // Progreso secuencial: 3 escuchas por tambor, en orden Paila→Prima→Pujao→
+  // Cruzao. El núcleo lo cuenta por compás completo y lo guarda; aquí sólo se
+  // pinta.
+  const NOMBRES_PASO = ['Paila', 'Prima', 'Pujao', 'Cruzao'];
+  const progresoBarra = root.querySelector('[data-progreso-barra]');
+  const progresoTexto = root.querySelector('[data-progreso-texto]');
+
+  function pintarProgreso() {
+    const p = audio.state.progresoSecuencial;
+    const fraccion = p.completado ? 1 : (p.pasoActual + p.escuchasRealizadas / p.maxEscuchas) / 4;
+    progresoBarra.style.width = `${Math.round(fraccion * 100)}%`;
+    progresoTexto.textContent = p.completado
+      ? '¡Completado! 🥁'
+      : `${NOMBRES_PASO[p.pasoActual]} · ${p.escuchasRealizadas}/${p.maxEscuchas} escuchas`;
+  }
+  root.querySelector('[data-progreso-reiniciar]')?.addEventListener('click', () => {
+    audio.reiniciarProgreso();
+  });
+  const unsubscribeProgreso = audio.subscribe(pintarProgreso);
+  pintarProgreso();
 
   // Mixer
   const mixerEl = root.querySelector('[data-mixer]');
@@ -431,10 +496,433 @@ export function mountMidipad(root, { engine, getContext, audio: shared } = {}) {
     audio
   });
 
+  // === EXPORT MODAL ===
+  const exportBtn = root.querySelector('[data-export]');
+  const exportModal = crearModalExportador({ root, audio, visualizador, engine, getContext });
+
+  exportBtn?.addEventListener('click', () => {
+    exportModal.abrir();
+  });
+
+  // Función para crear el modal de exportación
+  function crearModalExportador({ root, audio, visualizador, engine, getContext }) {
+    let modal = null;
+    let previewInterval = null;
+    // true mientras dura una exportación: el modal no se cierra a mitad.
+    let exportando = false;
+    // Estilo que tenía el visitante al abrir: se devuelve al cerrar.
+    let estiloDeAntes = null;
+
+    function onEscape(e) {
+      if (e.key === 'Escape') cerrar();
+    }
+
+    function cerrar() {
+      if (exportando) return;
+      if (previewInterval) {
+        clearInterval(previewInterval);
+        previewInterval = null;
+      }
+      // Lienzo otra vez en su resolución nativa y estilo original.
+      visualizador.setDimensionesExport(null);
+      if (estiloDeAntes && visualizador.getEstilo() !== estiloDeAntes) {
+        visualizador.setEstiloExport(estiloDeAntes);
+      }
+      estiloDeAntes = null;
+      document.removeEventListener('keydown', onEscape);
+      if (modal) {
+        modal.remove();
+        modal = null;
+      }
+    }
+
+    function abrir() {
+      if (modal) return;
+      estiloDeAntes = visualizador.getEstilo();
+
+      // Crear el modal
+      modal = document.createElement('div');
+      modal.setAttribute('data-export-modal', '');
+      modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm';
+      modal.innerHTML = `
+        <div class="relative w-full max-w-4xl mx-4 my-8 bg-zinc-950 rounded-2xl border border-zinc-800 overflow-hidden">
+          <div class="flex items-center justify-between p-4 border-b border-zinc-800">
+            <h2 class="text-lg font-bold text-zinc-50">Exportar vídeo</h2>
+            <button type="button" data-modal-cerrar class="p-2 rounded-lg hover:bg-zinc-800 transition-colors" aria-label="Cerrar">
+              <svg class="w-6 h-6 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="p-4 overflow-y-auto max-h-[70vh]">
+            <div class="flex gap-4 mb-4" role="tablist">
+              <button role="tab" data-tab="mp3" aria-selected="true" class="px-4 py-2 rounded-lg bg-amber-500 text-zinc-950 font-semibold">MP3</button>
+              <button role="tab" data-tab="mp4" aria-selected="false" class="px-4 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 transition-colors">MP4</button>
+            </div>
+            
+            <div role="tabpanel" data-panel="mp3" class="space-y-4">
+              <div>
+                <label for="export-mp3-nombre" class="block text-sm font-medium text-zinc-300 mb-1">Nombre del archivo</label>
+                <input type="text" id="export-mp3-nombre" maxlength="${MAX_NOMBRE}" placeholder="Mi ritmo" class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none">
+              </div>
+              <div>
+                <label for="export-mp3-duracion" class="block text-sm font-medium text-zinc-300 mb-1">Duración</label>
+                <select id="export-mp3-duracion" class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none">
+                  <option value="15">15 segundos</option>
+                  <option value="30" selected>30 segundos</option>
+                  <option value="60">60 segundos</option>
+                </select>
+              </div>
+              <p class="text-xs text-zinc-500">Máx. ${MAX_NOMBRE} caracteres. Si lo dejas vacío: "${NOMBRE_POR_DEFECTO}". Si grabaste tu voz, se mezcla en el MP3.</p>
+              <button type="button" id="btn-generar-mp3" class="w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-zinc-950 transition-colors hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed">
+                ⭳ Generar MP3
+              </button>
+              <p id="export-estado-mp3" class="text-center text-xs text-zinc-500" aria-live="polite"></p>
+            </div>
+            
+            <div role="tabpanel" data-panel="mp4" class="hidden space-y-4">
+              <div id="preview-box" class="rounded-xl bg-zinc-950 overflow-hidden relative h-[280px] w-full">
+                <canvas id="preview-canvas" class="absolute inset-0 h-full w-full" aria-label="Vista previa del vídeo"></canvas>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label for="export-estilo" class="block text-sm font-medium text-zinc-300 mb-1">Estilo</label>
+                  <select id="export-estilo" class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none">
+                    ${ESTILOS.map((e) => `<option value="${e.id}">${e.nombre}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label for="export-formato" class="block text-sm font-medium text-zinc-300 mb-1">Formato</label>
+                  <select id="export-formato" class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none">
+                    <option value="vertical">Vertical 9:16 (Reels/Shorts)</option>
+                    <option value="horizontal">Horizontal 16:9 (YouTube)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="export-calidad" class="block text-sm font-medium text-zinc-300 mb-1">Calidad</label>
+                  <select id="export-calidad" class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none">
+                    <option value="720" selected>720p — rápido</option>
+                    <option value="1080">1080p — alta</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="export-mp4-duracion" class="block text-sm font-medium text-zinc-300 mb-1">Duración</label>
+                  <select id="export-mp4-duracion" class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none">
+                    <option value="15" selected>15 segundos</option>
+                    <option value="30">30 segundos</option>
+                    <option value="60">60 segundos</option>
+                  </select>
+                </div>
+                <div class="col-span-2">
+                  <label for="export-plantilla" class="block text-sm font-medium text-zinc-300 mb-1">Plantilla</label>
+                  <select id="export-plantilla" class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none">
+                    ${PLANTILLAS.map((p) => `<option value="${p.id}">${p.nombre}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="col-span-2">
+                  <label for="export-nombre" class="block text-sm font-medium text-zinc-300 mb-1">Nombre / Canción</label>
+                  <input type="text" id="export-nombre" maxlength="${MAX_NOMBRE}" placeholder="Tu nombre o el nombre de la canción" class="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none">
+                  <p class="mt-1 text-xs text-zinc-500">Máx. ${MAX_NOMBRE} caracteres. Si lo dejas vacío: "${NOMBRE_POR_DEFECTO}".</p>
+                </div>
+                <div class="col-span-2 pt-2">
+                  <button type="button" id="btn-generar-mp4" class="w-full rounded-xl bg-amber-500 px-4 py-3 text-sm font-bold text-zinc-950 transition-colors hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed">
+                    ⏺ Generar MP4
+                  </button>
+                  <p id="export-mp4-nota" class="mt-1 hidden text-xs text-amber-400/90"></p>
+                  <p id="export-estado" class="mt-2 text-center text-xs text-zinc-500" aria-live="polite"></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      document.addEventListener('keydown', onEscape);
+
+      // Pestañas MP3 / MP4 (con vista previa en vivo al abrir MP4)
+      const tabs = modal.querySelectorAll('[role="tab"]');
+      const panels = modal.querySelectorAll('[role="tabpanel"]');
+
+      function mostrarPanel(tab) {
+        tabs.forEach((t) => {
+          const activo = t === tab;
+          t.setAttribute('aria-selected', String(activo));
+          t.classList.toggle('bg-amber-500', activo);
+          t.classList.toggle('text-zinc-950', activo);
+          t.classList.toggle('font-semibold', activo);
+          t.classList.toggle('text-zinc-300', !activo);
+          t.classList.toggle('hover:bg-zinc-800', !activo);
+        });
+        panels.forEach((p) => {
+          const activo = p.dataset.panel === tab.dataset.tab;
+          p.hidden = !activo;
+          p.classList.toggle('hidden', !activo);
+        });
+        if (tab.dataset.tab === 'mp4') {
+          aplicarFormatoPreview();
+          iniciarPreview();
+        } else detenerPreview();
+      }
+
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => mostrarPanel(tab));
+      });
+
+      // Estilo actual del visualizador; MP4 sólo en navegadores con WebCodecs.
+      const selEstilo = modal.querySelector('#export-estilo');
+      if (selEstilo) selEstilo.value = visualizador.getEstilo();
+      if (!puedeExportar() || !puedeGrabar()) {
+        const btnMp4 = modal.querySelector('#btn-generar-mp4');
+        const nota = modal.querySelector('#export-mp4-nota');
+        if (btnMp4) btnMp4.disabled = true;
+        if (nota) {
+          nota.textContent = 'Este navegador no puede exportar MP4 con marca — usa Chrome o Edge. El MP3 sí funciona aquí.';
+          nota.classList.remove('hidden');
+        }
+      }
+
+      // Cerrar modal
+      modal.querySelector('[data-modal-cerrar]')?.addEventListener('click', cerrar);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) cerrar();
+      });
+
+      // Vista previa WYSIWYG: el lienzo del visualizador se redimensiona al
+      // formato de salida (lo mismo que verá la grabación) y cada fotograma se
+      // pinta con la MISMA plantilla y nombre que usará el render final
+      // (dibujarFotograma), a escala. Lo que se ve aquí es lo que saldrá.
+      const previewCanvas = modal.querySelector('#preview-canvas');
+      const previewBox = modal.querySelector('#preview-box');
+      const previewCtx = previewCanvas ? previewCanvas.getContext('2d') : null;
+      const selFormato = modal.querySelector('#export-formato');
+      const selCalidad = modal.querySelector('#export-calidad');
+      const selPlantilla = modal.querySelector('#export-plantilla');
+      const inputNombre = modal.querySelector('#export-nombre');
+
+      function dimsActuales() {
+        return formatoSalida(selFormato?.value, selCalidad?.value);
+      }
+
+      function aplicarFormatoPreview() {
+        if (exportando) return;
+        const dims = dimsActuales();
+        visualizador.setDimensionesExport(dims);
+        if (!previewCanvas || !previewBox) return;
+        const ratio = dims.ancho / dims.alto;
+        const maxAlto = Math.min(Math.round(window.innerHeight * 0.44), 440);
+        const maxAncho = previewBox.parentElement?.clientWidth ?? 480;
+        let h = maxAlto;
+        let w = h * ratio;
+        if (w > maxAncho) {
+          w = maxAncho;
+          h = w / ratio;
+        }
+        previewBox.style.width = `${Math.round(w)}px`;
+        previewBox.style.height = `${Math.round(h)}px`;
+        previewBox.style.marginInline = 'auto';
+        const escala = 540 / Math.max(dims.ancho, dims.alto);
+        previewCanvas.width = Math.round(dims.ancho * escala);
+        previewCanvas.height = Math.round(dims.alto * escala);
+      }
+
+      function iniciarPreview() {
+        if (previewInterval) return;
+        if (!previewCtx) return;
+        aplicarFormatoPreview();
+        previewInterval = setInterval(() => {
+          if (!modal) {
+            detenerPreview();
+            return;
+          }
+          // El canvas fuente se busca en cada fotograma: cambiar de estilo al
+          // 3D sustituye el elemento del lienzo.
+          const fuente = document.querySelector('[data-vz-canvas]');
+          if (!fuente) return;
+          dibujarFotograma(previewCtx, {
+            fotograma: fuente,
+            plantilla: plantillaPorId(selPlantilla?.value),
+            nombre: inputNombre?.value ?? '',
+            formato: { ancho: previewCanvas.width, alto: previewCanvas.height }
+          });
+        }, 1000 / 30);
+      }
+
+      function detenerPreview() {
+        if (previewInterval) {
+          clearInterval(previewInterval);
+          previewInterval = null;
+        }
+      }
+
+      // Formato o calidad: re-enquadran la caja, el lienzo de grabación y la
+      // resolución de salida de una vez, para que coincidan siempre.
+      selFormato?.addEventListener('change', aplicarFormatoPreview);
+      selCalidad?.addEventListener('change', aplicarFormatoPreview);
+      // Cambiar estilo en la preview también lo cambia en el visualizador
+      // principal (comparten lienzo): si falla, el select se re-sincroniza.
+      selEstilo?.addEventListener('change', () => {
+        const valor = selEstilo.value;
+        visualizador.setEstiloExport(valor).then((ok) => {
+          if (!ok && selEstilo.value === valor) selEstilo.value = visualizador.getEstilo();
+        });
+      });
+      
+      // Botón generar MP3
+      modal.querySelector('#btn-generar-mp3')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const estado = modal.querySelector('#export-estado-mp3');
+        const nombre = (modal.querySelector('#export-mp3-nombre')?.value || '').trim() || NOMBRE_POR_DEFECTO;
+        const duracionSeg = Number(modal.querySelector('#export-mp3-duracion')?.value) || 30;
+        btn.disabled = true;
+        estado.textContent = `Generando MP3… hasta ${duracionSeg} s de audio.`;
+        try {
+          const res = await exportarMp3(audio, {
+            duracionSeg,
+            voz: voiceBuffer,
+            engine,
+            getContext,
+            alProgresar: (f) => {
+              estado.textContent = `Generando MP3… ${Math.round(f * 100)}%`;
+            }
+          });
+          if (!res?.blob) throw new Error('La exportación de audio salió vacía.');
+          descargar(res.blob, nombreArchivo(nombre, 'mp3'));
+          estado.textContent = '¡Listo! Descarga iniciada.';
+        } catch (err) {
+          console.error('[export] MP3 error:', err);
+          estado.textContent = 'No se pudo generar el MP3. Intenta otra vez.';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+      
+      // Botón generar MP4
+      modal.querySelector('#btn-generar-mp4')?.addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const estado = modal.querySelector('#export-estado');
+        const selEstiloMp4 = modal.querySelector('#export-estilo');
+        const nombre = (inputNombre?.value || '').trim() || NOMBRE_POR_DEFECTO;
+        const plantillaId = selPlantilla?.value;
+        const duracionSeg = Number(modal.querySelector('#export-mp4-duracion')?.value) || 15;
+        const formato = dimsActuales();
+        const estiloId = selEstiloMp4?.value;
+
+        if (exportando || !estado) return;
+        exportando = true;
+        btn.disabled = true;
+        btn.textContent = 'Grabando…';
+        if (selEstiloMp4) selEstiloMp4.disabled = true;
+        if (selFormato) selFormato.disabled = true;
+        if (selCalidad) selCalidad.disabled = true;
+        estado.textContent = 'Preparando el vídeo…';
+
+        let grabador = null;
+        let reclamado = false;
+        let detuvo = false;
+        try {
+          // Encuadre exacto de salida y estilo elegidos, antes de capturar nada.
+          visualizador.setDimensionesExport(formato);
+          await visualizador.setEstiloExport(estiloId);
+          await new Promise((r) => setTimeout(r, 150));
+
+          const lienzo = document.querySelector('[data-vz-canvas]');
+          if (!lienzo) throw new Error('No se encontró el canvas del visualizador.');
+
+          const sonaba = audio.state.reproduciendo;
+          grabador = createGrabador({
+            canvas: lienzo,
+            engine,
+            getContext,
+            limiteSeg: MAX_SIN_LIMITE,
+            alCambiarEstado: (txt) => {
+              estado.textContent = txt;
+            }
+          });
+
+          const res = await grabador.grabar();
+          if (!res?.ok) throw new Error(res?.motivo || 'Este navegador no puede grabar MP4.');
+
+          if (!sonaba) {
+            transporte.start();
+            reclamado = true;
+            audio.start();
+            playBtn.disabled = true;
+            stopBtn.disabled = false;
+          }
+
+          await new Promise((r) => setTimeout(r, duracionSeg * 1000));
+          const fin = await grabador.detener();
+          detuvo = true;
+          if (!fin?.blob) throw new Error('La grabación salió vacía.');
+
+          // La grabación ya existe: para preview, audio y visualizador, y
+          // congela la página (clase `exportando`). Con todo el sitio activo,
+          // el codificador y la página comparten GPU y la exportación cae a
+          // ~1 fps; congelada corre a velocidad normal.
+          detenerPreview();
+          if (audio.state.reproduciendo || reclamado) {
+            audio.stop();
+            transporte.release();
+            reposo();
+            reclamado = false;
+          }
+          document.documentElement.classList.add('exportando');
+
+          estado.textContent = 'Codificando MP4… 0%';
+          const out = await exportarClip({
+            blob: fin.blob,
+            plantilla: plantillaPorId(plantillaId),
+            nombre,
+            formato,
+            alProgresar: (p) => {
+              estado.textContent = `Codificando MP4… ${Math.round(p * 100)}%`;
+            }
+          });
+          descargar(out.blob, out.nombre);
+          estado.textContent = '¡Listo! Descarga iniciada.';
+        } catch (err) {
+          console.error('[export] MP4 error:', err);
+          estado.textContent = 'Error: ' + err.message;
+        } finally {
+          document.documentElement.classList.remove('exportando');
+          if (grabador) {
+            if (!detuvo) {
+              try {
+                await grabador.detener();
+              } catch {
+                // ya estaba detenido
+              }
+            }
+            grabador.destroy();
+          }
+          if (reclamado) {
+            audio.stop();
+            transporte.release();
+            reposo();
+          }
+          // El estilo no se revierte aquí: el modal sigue abierto mostrando lo
+          // que se exportó; al cerrarlo, `cerrar()` restaura el original.
+          if (selEstiloMp4) selEstiloMp4.disabled = false;
+          if (selFormato) selFormato.disabled = false;
+          if (selCalidad) selCalidad.disabled = false;
+          btn.disabled = false;
+          btn.textContent = '⏺ Generar MP4';
+          exportando = false;
+          // Si el usuario sigue en la pestaña MP4, la vista previa vuelve.
+          const panelMp4 = modal?.querySelector('[data-panel="mp4"]');
+          if (panelMp4 && !panelMp4.hidden) iniciarPreview();
+        }
+      });
+    }
+
+    return { abrir, cerrar };
+  }
+
   return {
     visualizador,
     destroy() {
+      exportModal?.cerrar();
       unsubscribe?.();
+      unsubscribeProgreso?.();
       transporte.release();
       visualizador?.destroy();
       audio.stop();

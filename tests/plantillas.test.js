@@ -5,6 +5,7 @@ import {
   NOMBRE_POR_DEFECTO,
   PLANTILLAS,
   plantillaPorId,
+  formatoSalida,
   repartirNombre
 } from '../src/core/media/plantillas.js';
 
@@ -28,6 +29,35 @@ describe('formatos', () => {
     // El formato de cada uno tiene que ser el que dice su nombre.
     expect(FORMATOS.vertical.alto / FORMATOS.vertical.ancho).toBeCloseTo(16 / 9, 2);
     expect(FORMATOS.horizontal.ancho / FORMATOS.horizontal.alto).toBeCloseTo(16 / 9, 2);
+  });
+});
+
+describe('formatoSalida (formato × calidad)', () => {
+  it('720p baja la resolución manteniendo la proporción', () => {
+    expect(formatoSalida('vertical', '720')).toMatchObject({ ancho: 720, alto: 1280 });
+    expect(formatoSalida('horizontal', '720')).toMatchObject({ ancho: 1280, alto: 720 });
+    expect(formatoSalida('vertical', '720').alto / formatoSalida('vertical', '720').ancho).toBeCloseTo(16 / 9, 5);
+    expect(formatoSalida('horizontal', '720').ancho / formatoSalida('horizontal', '720').alto).toBeCloseTo(16 / 9, 5);
+  });
+
+  it('1080p devuelve la resolución completa', () => {
+    expect(formatoSalida('vertical', '1080')).toMatchObject({ ancho: 1080, alto: 1920 });
+    expect(formatoSalida('horizontal', '1080')).toMatchObject({ ancho: 1920, alto: 1080 });
+  });
+
+  it('por defecto es 720p (lo rápido) y cae en vertical si el formato es raro', () => {
+    expect(formatoSalida('vertical')).toMatchObject({ ancho: 720, alto: 1280 });
+    expect(formatoSalida('no-existe', '720')).toMatchObject({ ancho: 720, alto: 1280 });
+  });
+
+  it('las medidas salen siempre pares (lo exigen los codecs)', () => {
+    for (const f of ['vertical', 'horizontal']) {
+      for (const c of ['720', '1080']) {
+        const s = formatoSalida(f, c);
+        expect(s.ancho % 2, `${f}-${c}`).toBe(0);
+        expect(s.alto % 2, `${f}-${c}`).toBe(0);
+      }
+    }
   });
 });
 

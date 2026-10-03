@@ -226,20 +226,33 @@ describe('montaje del componente', () => {
     // y sin ningún aviso. Se comprueba que marcador y búsqueda no se separen.
     const src = readFileSync(new URL('../src/components/visualizador.js', import.meta.url), 'utf8');
     const usados = [...src.matchAll(/querySelector\('\[(data-[a-z-]+)\]'\)/g)].map((m) => m[1]);
-    expect(usados.length).toBeGreaterThan(4);
+    // Tras mover la exportación al modal del Midipad quedan 4: canvas, estilo,
+    // descripción y aviso de carga.
+    expect(usados.length).toBeGreaterThanOrEqual(4);
     for (const attr of usados) {
       // Aparece al menos una vez como atributo en el HTML del propio componente.
       expect(src.includes(attr), `el marcado no declara ${attr}`).toBe(true);
     }
   });
 
-  it('el marcado declara los cuatro estilos y los dos botones', () => {
+  it('el marcado declara los estilos y la exportación vive en el modal del Midipad', () => {
     const src = readFileSync(new URL('../src/components/visualizador.js', import.meta.url), 'utf8');
     expect(src).toContain('data-viz-estilo');
     expect(src).toContain('data-vz-canvas');
-    expect(src).toContain('data-vz-mp3');
-    expect(src).toContain('data-vz-mp4');
-    expect(src).toContain('data-vz-limite');
+    // El visualizador ya no exporta: formato/nombre/MP3/MP4 están en el modal.
+    expect(src).not.toContain('data-vz-formato');
+    expect(src).not.toContain('data-vz-nombre');
+    // Sin botones MP3/MP4 ni límite en el visualizador
+    expect(src).not.toContain('data-vz-mp3');
+    expect(src).not.toContain('data-vz-mp4');
+    expect(src).not.toContain('data-vz-limite');
+    // El modal del Midipad declara los controles de exportación
+    const mid = readFileSync(new URL('../src/components/midipad.js', import.meta.url), 'utf8');
+    expect(mid).toContain('id="export-plantilla"');
+    expect(mid).toContain('id="export-nombre"');
+    expect(mid).toContain('id="export-mp4-duracion"');
+    expect(mid).toContain('id="btn-generar-mp3"');
+    expect(mid).toContain('id="btn-generar-mp4"');
   });
 });
 

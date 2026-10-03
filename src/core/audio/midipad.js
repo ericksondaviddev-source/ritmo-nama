@@ -23,13 +23,83 @@ export function createMidipadAudio({ engine, getContext } = {}) {
     articulation: defaultArticulations(),
     patternId: null,
     reproduciendo: false,
-    master: 0.85
+    master: 0.85,
+    // Progreso secuencial Paila→Prima→Pujao→Cruzao: 3 compases completos por
+    // tambor. Se persiste para que al volver a entrar siga donde quedó.
+    progresoSecuencial: {
+      pasoActual: 0,     // 0=Paila, 1=Prima, 2=Pujao, 3=Cruzao
+      escuchasRealizadas: 0,
+      maxEscuchas: 3,    // Desbloqueo después de 3 escuchas
+      completado: false
+    }
   };
   let scheduler = null;
   const listeners = new Set();
   // Vistas que siguen el ritmo: el visualizador se dibuja con estos eventos, así
   // que lo que se ve y lo que se oyen salen del mismo reloj.
   const oyentesDePaso = new Set();
+
+  const CLAVE_PROGRESO = 'ritmo-nama-progreso';
+  // Últo paso entregado: una escucha se cuenta al completar el compás (11 → 0),
+  // no en cada paso. Contar por paso daba el título en un solo compás.
+  let pasoAnterior = -1;
+
+  function cargarProgreso() {
+    try {
+      if (typeof localStorage === 'undefined') return;
+      const guardado = JSON.parse(localStorage.getItem(CLAVE_PROGRESO) ?? 'null');
+      if (!guardado) return;
+      const p = state.progresoSecuencial;
+      if (Number.isInteger(guardado.pasoActual)) {
+        p.pasoActual = Math.min(Math.max(guardado.pasoActual, 0), 3);
+      }
+      if (Number.isInteger(guardado.escuchasRealizadas)) {
+        p.escuchasRealizadas = Math.min(Math.max(guardado.escuchasRealizadas, 0), p.maxEscuchas - 1);
+      }
+      p.completado = guardado.completado === true;
+    } catch {
+      // Sin localStorage (modo privado, JSON roto): el progreso vive en esta sesión.
+    }
+  }
+
+  function guardarProgreso() {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(CLAVE_PROGRESO, JSON.stringify(state.progresoSecuencial));
+      }
+    } catch {
+      // Cuota llena o almacenamiento bloqueado: no es crítico para tocar.
+    }
+  }
+  cargarProgreso();
+
+  /** Una escucha = un compás completo de 12 pasos. Al pasar de 3, avanza. */
+  function actualizarProgresoSecuencial() {
+    const p = state.progresoSecuencial;
+    if (p.completado) return;
+    p.escuchasRealizadas++;
+    if (p.escuchasRealizadas >= p.maxEscuchas) {
+      p.escuchasRealizadas = 0;
+      p.pasoActual++;
+      if (p.pasoActual >= 4) {
+        p.pasoActual = 0;
+        p.completado = true;
+      }
+    }
+    guardarProgreso();
+    emit();
+  }
+
+  /** Vuelve al principio de la secuencia (botón "Reiniciar" del estudio). */
+  function reiniciarProgreso() {
+    const p = state.progresoSecuencial;
+    p.pasoActual = 0;
+    p.escuchasRealizadas = 0;
+    p.completado = false;
+    pasoAnterior = -1;
+    guardarProgreso();
+    emit();
+  }
 
   function emit() {
     for (const fn of listeners) fn(state);
@@ -43,6 +113,9 @@ export function createMidipadAudio({ engine, getContext } = {}) {
   /** Se llama en cada paso, con el instante de audio ya fijado. */
   function onStepDelRitmo(step, time, golpeados) {
     for (const fn of oyentesDePaso) fn(step, time, golpeados);
+    const compasCompleto = pasoAnterior === 11 && step === 0;
+    pasoAnterior = step;
+    if (compasCompleto) actualizarProgresoSecuencial();
   }
 
   function alTocarElRitmo(fn) {
@@ -255,6 +328,7 @@ export function createMidipadAudio({ engine, getContext } = {}) {
     stop,
     warmUp,
     renderExport,
+    reiniciarProgreso,
     soloActive,
     get isRunning() {
       return Boolean(scheduler?.isRunning);
